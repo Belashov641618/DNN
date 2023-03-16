@@ -39,7 +39,7 @@ class HeightMaskLayer(torch.nn.Module):
         if torch.is_tensor(wave_length):
             _Lambda = wave_length.to(torch.float32)
         else:
-            _Lambda = torch.tensor(requires_grad=False, dtype=torch.float32,    data=wave_length)
+            _Lambda = torch.tensor(requires_grad=False, dtype=torch.float32, data=[wave_length])
 
         _SpaceComplexReflection = torch.tensor(requires_grad=False, dtype=torch.complex64,  data=space_reflection)
         _MaskComplexReflection  = torch.tensor(requires_grad=False, dtype=torch.complex64,  data=mask_reflection)
@@ -173,12 +173,13 @@ class ImprovedD2NN(torch.nn.Module):
         self._PropagationLayer = PaddedDiffractionLayer(wave_length, space_reflection, pixel_length*pixels_count, pixels_count, layer_spacing_length, up_scaling, border_length)
         self._MaskLayers = torch.nn.ModuleList([HeightMaskLayer(wave_length, space_reflection, mask_reflection, pixels_count, up_scaling, smoothing_matrix) for _ in range(layers_count)])
 
-    def forward(self, field):
+    def forward(self, field, variable_that_has_to_be_deleted):
         field = self._PropagationLayer(field)
         for _MaskLayer in self._MaskLayers:
             field = _MaskLayer(field)
             field = self._PropagationLayer(field)
-        return field
+        field = torch.abs(field)**2
+        return field.sum(dim=1), variable_that_has_to_be_deleted
 
     def save(self, file_name='FileImprovedD2NN.data'):
         try:
@@ -228,6 +229,104 @@ class ImprovedD2NN(torch.nn.Module):
             cbar.ax.tick_params(labelsize=8, labelleft=True, left=True, labelright=False, right=False)
 
         plt.show()
+
+
+def test_TrainingImprovedD2NN(batch_size=8, layers_count=4, pixels_count=20, pixel_length=50*um, wave_length=600*nm, space_reflection=1.0, mask_reflection=1.5, layer_spacing_length=5*mm, up_scaling=None, border_length=None, smoothing_matrix=None):
+    from src.DNN import Trainer
+    from src.DNN import DETECTOR_POS
+    from src.utils import set_det_pos, get_detector_imgs, visualize_n_samples, mask_visualization
+    import torchvision
+
+    if up_scaling is None:
+        up_scaling = 32
+    if border_length is None:
+        border_length = pixel_length * pixels_count / 2
+
+
+
+    #Loading Data
+    transformation = torchvision.transforms.Compose([
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Resize(size=(int(pixels_count * up_scaling), int(pixels_count * up_scaling))),
+        torchvision.transforms.ConvertImageDtype(dtype=torch.complex64)
+    ])
+    training = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transformation)
+    train_loader = torch.utils.data.DataLoader(training, batch_size=batch_size, shuffle=True, num_workers=0)
+    testing = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transformation)
+    test_loader = torch.utils.data.DataLoader(testing, batch_size=batch_size, shuffle=False, num_workers=0)
+    classes = ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+
+
+
+    #Setting device
+    torch.cuda.init()
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    if torch.cuda.is_available():
+        print('Using device:', torch.cuda.get_device_name(), '')
+        available, total = torch.cuda.mem_get_info()
+        print("Memory | Available: %.2f GB | Total:     %.2f GB" % (available / 1e9, total / 1e9))
+    else:
+        print('Using device:', 'cpu')
+
+
+
+    #Setting Detector Positions
+    edge_x = pixels_count * up_scaling // 20
+    edge_y = edge_x * 2
+    det_size = (pixels_count * up_scaling - 5 * edge_x) // 4
+    labels_image_tensors, detector_pos = get_detector_imgs(det_size=det_size, edge_x=edge_x, edge_y=edge_y, N_pixels=pixels_count * up_scaling)
+    labels_image_tensors = labels_image_tensors.to(device)
+
+
+
+    #Creating Custom Losses
+    def custom_loss_MSE(images, labels):
+        full_int_img = images.sum(dim=(1, 2))[:, None, None]
+        full_int_label = labels_image_tensors[labels].sum(dim=(1, 2))[:, None, None]
+        loss = ((images / full_int_img - labels_image_tensors[labels] / full_int_label) ** 2).sum(dim=(1, 2))
+        return loss.mean()
+    crossEntropy = torch.nn.CrossEntropyLoss().to(device)
+    # def custom_loss(images, labels):
+    #     full_int = images.sum(dim=(1, 2))
+    #     loss = 1 - (images * labels_image_tensors[labels]).sum(dim=(1, 2)) / full_int
+    #     return loss.mean()
+    def custom_loss_CrossEntropy(images, labels, multiplier=10):
+        full_int_img = images.sum(dim=(1, 2))[:, None, None]
+        detector_parts = (images[:, None, :, :] * (labels_image_tensors[None, :, :, :])).sum(dim=(2, 3))
+        detector_parts = detector_parts / (detector_parts.max(dim=1).values[:, None]) * multiplier
+        return crossEntropy(detector_parts, labels)
+    # def custom_loss_CrossEntropy_MSE(images, labels, multiplier=10):
+    #     full_int_img = images.sum(dim=(1, 2))[:, None, None]
+    #     detector_parts = (images[:, None, :, :] * (labels_image_tensors[None, :, :, :])).sum(dim=(2, 3))
+    #     detector_parts = detector_parts / (detector_parts.max(dim=1).values[:, None]) * multiplier
+    #     detector_intensity = (1 - detector_parts.sum(dim=1) / full_int_img).mean()
+    #     return 0.2 * crossEntropy(detector_parts, labels) + 0.8 * detector_intensity
+    def custom_loss_sum(images, labels, multiplier=10):
+        return 500 * custom_loss_MSE(images, labels) + 1 * custom_loss_CrossEntropy(images, labels, multiplier=10)
+
+
+
+    #Creating Model Optimizer and LossFunction
+    model = ImprovedD2NN(layers_count, pixels_count, pixel_length, wave_length, space_reflection, mask_reflection, layer_spacing_length, up_scaling, border_length, smoothing_matrix).to(device)
+    criterion = custom_loss_sum
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.003)
+
+
+
+    #Creating Trainer
+    trainer = Trainer(model, detector_pos, 0, device)
+
+
+
+    #Visualizing Masks
+    # mask_visualization(model)
+    # visualize_n_samples(model, testing, n=5, padding=0, detector_pos=detector_pos)
+
+
+
+    #Training
+    histograms, best_model = trainer.train(criterion, optimizer, train_loader, test_loader, epochs=1)
+    best_model.save()
 
 def test_HeightMaskLayer(show=False):
     from itertools import product
@@ -549,6 +648,7 @@ if __name__ == '__main__':
     # test_PaddedDiffractionLayer()
     # test_ImprovedD2NN()
     test_show()
+    test_TrainingImprovedD2NN()
 
 
 
