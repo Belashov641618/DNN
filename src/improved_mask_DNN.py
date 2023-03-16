@@ -1,12 +1,14 @@
+import matplotlib.pyplot as plt
 import torch
 import numpy
-from typing import List
+import pickle
+from itertools import product
 if __name__ == '__main__':
     from src.AdditionalUtilities.DecimalPrefixes import nm, um, mm
     from src.AdditionalUtilities.Formaters import Format
     from src.AdditionalUtilities.TitledFigure import Titles
 else:
-    from .AdditionalUtilities.DecimalPrefixes import    nm, um, mm
+    from .AdditionalUtilities.DecimalPrefixes import nm, um, mm
     from .AdditionalUtilities.Formaters import Format
     from .AdditionalUtilities.TitledFigure import Titles
 
@@ -34,7 +36,10 @@ class HeightMaskLayer(torch.nn.Module):
         super(HeightMaskLayer, self).__init__()
 
         #Setting all class fields:
-        _Lambda = torch.tensor(requires_grad=False, dtype=torch.float32,    data=wave_length)
+        if torch.is_tensor(wave_length):
+            _Lambda = wave_length.to(torch.float32)
+        else:
+            _Lambda = torch.tensor(requires_grad=False, dtype=torch.float32,    data=wave_length)
 
         _SpaceComplexReflection = torch.tensor(requires_grad=False, dtype=torch.complex64,  data=space_reflection)
         _MaskComplexReflection  = torch.tensor(requires_grad=False, dtype=torch.complex64,  data=mask_reflection)
@@ -61,19 +66,19 @@ class HeightMaskLayer(torch.nn.Module):
         #Checking if everything ok and fixing some issues
         if True:
             if _Lambda.size() == 1:
-                if _SpaceComplexReflection.size() != 1:
+                if _SpaceComplexReflection.size() != torch.Size([]):
                     raise Exception('Space reflection should be single if wave_length is single')
-                if _MaskComplexReflection.size() != 1:
+                if _MaskComplexReflection.size() != torch.Size([]):
                     raise Exception('Mask reflection should be single if wave_length is single')
             else:
                 if _SpaceComplexReflection.size() != _Lambda.size():
-                    if _SpaceComplexReflection.size() == 1:
-                        _SpaceComplexReflection = _SpaceComplexReflection.repeat(_Lambda.size().item())
+                    if _SpaceComplexReflection.size() == torch.Size([]):
+                        _SpaceComplexReflection = _SpaceComplexReflection.repeat(_Lambda.size())
                     else:
                         raise Exception('Space reflection should be same size as wave length or single value')
                 if _MaskComplexReflection.size() != _Lambda.size():
-                    if _MaskComplexReflection.size() == 1:
-                        _MaskComplexReflection = _MaskComplexReflection.repeat(_Lambda.size().item())
+                    if _MaskComplexReflection.size() == torch.Size([]):
+                        _MaskComplexReflection = _MaskComplexReflection.repeat(_Lambda.size())
                     else:
                         raise Exception('Mask reflection should be same size as wave length or single value')
             if self._Parameters.size() != torch.Size((pixels_count, pixels_count)):
@@ -118,32 +123,111 @@ class PaddedDiffractionLayer(torch.nn.Module):
     _PropagationArguments : None
     def _init_PropagationArguments(self, wave_length, up_scaled_pixels_count, up_scaled_pixel_length, diffraction_length, space_reflection, border_pixels_count):
         # Этот код скопирован из DiffractiveLayer, но затухающие моды учитываются и добавлен учёт границы
-        wave_length = numpy.array(wave_length).reshape((-1, 1, 1))
-        fx = numpy.fft.fftshift(numpy.fft.fftfreq(up_scaled_pixels_count + 2*border_pixels_count, d=up_scaled_pixel_length))
-        fy = numpy.fft.fftshift(numpy.fft.fftfreq(up_scaled_pixels_count + 2*border_pixels_count, d=up_scaled_pixel_length))
-        fxx, fyy = numpy.meshgrid(fx, fy)
+        wave_length         = wave_length.expand(1, 1, -1).movedim(2,0)
+        space_reflection    = space_reflection.expand(1, 1, -1).movedim(2,0)
 
-        Kz = torch.tensor((2 * numpy.pi) * numpy.sqrt(0j + (1.0/(wave_length*space_reflection))**2 - fxx**2 - fyy**2), dtype=torch.complex64)
+        fx = torch.fft.fftshift(torch.fft.fftfreq(up_scaled_pixels_count + 2*border_pixels_count, d=up_scaled_pixel_length))
+        fy = torch.fft.fftshift(torch.fft.fftfreq(up_scaled_pixels_count + 2*border_pixels_count, d=up_scaled_pixel_length))
+        fxx, fyy = torch.meshgrid(fx, fy, indexing='ij')
+
+        Kz = ((2 * torch.pi) * torch.sqrt(0j + (1.0/(wave_length*space_reflection))**2 - fxx**2 - fyy**2)).to(dtype=torch.complex64)
         self.register_buffer('_PropagationArguments', torch.exp(1j * Kz * diffraction_length))
 
     def __init__(self, wave_length=600*nm, space_reflection=1.0, plane_length=1.5*mm, pixels_count=50, diffraction_length=1.0*mm, up_scaling=20, border_length=0.0):
         super(PaddedDiffractionLayer, self).__init__()
+
+        if not torch.is_tensor(wave_length):
+            wave_length = torch.tensor([wave_length])
+        if not torch.is_tensor(space_reflection):
+            space_reflection = torch.tensor([space_reflection])
+        if space_reflection.size() != wave_length.size():
+            space_reflection = space_reflection.expand_as(wave_length)
 
         self._BorderPixelsCount = int(border_length * pixels_count * up_scaling / plane_length)
 
         self._init_PropagationArguments(wave_length, pixels_count*up_scaling, plane_length/(pixels_count*up_scaling), diffraction_length, space_reflection, self._BorderPixelsCount)
 
     def forward(self, field):
-        field_padded                = torch.nn.functional.pad(field, (+self._BorderPixelsCount, +self._BorderPixelsCount, +self._BorderPixelsCount, +self._BorderPixelsCount))
-        field_angular_spectrum      = torch.fft.fftshift(torch.fft.fft2(field_padded))
-        field_propagated_padded     = torch.fft.ifft2(torch.fft.ifftshift(field_angular_spectrum * self._PropagationArguments))
-        field_propagated_un_padded  = torch.nn.functional.pad(field_propagated_padded, (-self._BorderPixelsCount, -self._BorderPixelsCount, -self._BorderPixelsCount, -self._BorderPixelsCount))
-        return field_propagated_un_padded
+        field = torch.nn.functional.pad(field, (+self._BorderPixelsCount, +self._BorderPixelsCount, +self._BorderPixelsCount, +self._BorderPixelsCount))
+        field = torch.fft.fftshift(torch.fft.fft2(field))
+        field = torch.fft.ifft2(torch.fft.ifftshift(field * self._PropagationArguments))
+        field = torch.nn.functional.pad(field, (-self._BorderPixelsCount, -self._BorderPixelsCount, -self._BorderPixelsCount, -self._BorderPixelsCount))
+        return field
         
 class ImprovedD2NN(torch.nn.Module):
-    def __init__(self):
+
+    _MaskLayers         : type(torch.nn.ModuleList)
+    _PropagationLayer   : PaddedDiffractionLayer
+
+    _PlaneLength : float
+    def __init__(self, layers_count=4, pixels_count=20, pixel_length=50*um, wave_length=600*nm, space_reflection=1.0, mask_reflection=1.5, layer_spacing_length=5*mm, up_scaling=None, border_length=None, smoothing_matrix=None):
         super(ImprovedD2NN, self).__init__()
 
+        self._PlaneLength = pixel_length * pixels_count
+
+        if up_scaling is None:
+            up_scaling = 32
+        if border_length is None:
+            border_length = pixel_length*pixels_count/2
+
+        self._PropagationLayer = PaddedDiffractionLayer(wave_length, space_reflection, pixel_length*pixels_count, pixels_count, layer_spacing_length, up_scaling, border_length)
+        self._MaskLayers = torch.nn.ModuleList([HeightMaskLayer(wave_length, space_reflection, mask_reflection, pixels_count, up_scaling, smoothing_matrix) for _ in range(layers_count)])
+
+    def forward(self, field):
+        field = self._PropagationLayer(field)
+        for _MaskLayer in self._MaskLayers:
+            field = _MaskLayer(field)
+            field = self._PropagationLayer(field)
+        return field
+
+    def save(self, file_name='FileImprovedD2NN.data'):
+        try:
+            file = open(file_name, 'wb')
+            pickle.dump(self, file)
+            file.close()
+        except Exception as e:
+            print(e)
+    @staticmethod
+    def load(file_name='FileImprovedD2NN.data'):
+        try:
+            file = open(file_name, 'rb')
+            self = pickle.load(file)
+            file.close()
+            return self
+        except Exception as e:
+            print(e)
+
+    def VisualizeHeights(self):
+
+        N = len(self._MaskLayers)
+        Ny = int(numpy.sqrt(N))
+        Nx = int(N/Ny) + ((N/Ny - int(N/Ny)) != 0)
+
+        fig = plt.figure(figsize=(12*Nx/Ny+0.16*Nx/4, 12))
+        fig.suptitle('Матрицы высот сети', **Format.Text('BigHeader'))
+        Fig = Titles(fig, (Nx, Ny), topspace=0.05)
+
+        for (n, MaskLayer), (ny, nx)  in zip(enumerate(self._MaskLayers), product(range(Ny), range(Nx))):
+            heights = MaskLayer.GetPreparedHeights()
+
+            unitXY, multXY = Format.Engineering_Separated(self._PlaneLength, 'm')
+            unitZ,  multZ  = Format.Engineering_Separated(torch.max(heights), 'm')
+
+            heights *= multZ
+
+            axes = Fig.add_axes((nx+1, ny+1))
+            axes.set_title('Маска №' + str(n+1), **Format.Text('Header'))
+            axes.xaxis.set_tick_params(labelsize=8)
+            axes.yaxis.set_tick_params(labelsize=8)
+            axes.set_xlabel('X, ' + unitXY, **Format.Text('Default', {'fontweight': 'bold'}))
+            axes.set_ylabel('Y, ' + unitXY, **Format.Text('Default', {'fontweight': 'bold', 'rotation': 90}))
+            image = axes.imshow(heights, cmap='viridis', origin='lower', extent=[-self._PlaneLength * multXY / 2, +self._PlaneLength * multXY / 2, -self._PlaneLength * multXY / 2, +self._PlaneLength * multXY / 2])
+
+            cbar = fig.colorbar(image, ax=axes, location='right', shrink=0.8, pad=0.12*Nx/4)
+            cbar.ax.set_ylabel('Высота Z, ' + unitZ, **Format.Text('Default', {'fontweight': 'bold', 'rotation': 90, 'verticalalignment':'top'}))
+            cbar.ax.tick_params(labelsize=8, labelleft=True, left=True, labelright=False, right=False)
+
+        plt.show()
 
 def test_HeightMaskLayer(show=False):
     from itertools import product
@@ -424,7 +508,36 @@ def test_PaddedDiffractionLayer(show=False):
 def test_ImprovedD2NN(show=False):
     import matplotlib.pyplot as plt
 
+    print('<ImprovedD2NN> - Save and load test: ', end='')
+    try:
+        PixelsCount = 20
+        UpScaling = 16
+        LambdasCount = 5
+        Lambdas = torch.linspace(400*nm, 700*nm, LambdasCount)
+        Tests = 10
 
+        Network0 = ImprovedD2NN(pixels_count=PixelsCount, up_scaling=UpScaling, wave_length=Lambdas)
+        Network0.save()
+
+        Network1 = ImprovedD2NN.load()
+
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        Network0 = Network0.to(device)
+        Network1 = Network1.to(device)
+
+        Inputs = torch.rand((Tests, LambdasCount, PixelsCount*UpScaling, PixelsCount*UpScaling), device=device) * torch.exp(2j*torch.pi*torch.rand((Tests, LambdasCount, PixelsCount*UpScaling, PixelsCount*UpScaling), device=device))
+
+        Outputs0 = Network0.forward(Inputs)
+        Outputs1 = Network1.forward(Inputs)
+
+        MaxError = torch.max(torch.abs(Outputs1 - Outputs0)).cpu()
+
+        if MaxError != 0:
+            raise Exception('Maximum Error greater than zero ' + Format.Scientific(MaxError))
+        print('Pass!')
+    except Exception as e:
+        print('Failed! (' + str(e) + ')')
+        return
 
     if show:
         plt.show()
@@ -432,9 +545,9 @@ def test_show():
     import matplotlib.pyplot as plt
     plt.show()
 if __name__ == '__main__':
-    test_HeightMaskLayer()
-    test_PaddedDiffractionLayer()
-    test_ImprovedD2NN()
+    # test_HeightMaskLayer()
+    # test_PaddedDiffractionLayer()
+    # test_ImprovedD2NN()
     test_show()
 
 
