@@ -143,7 +143,7 @@ class Colorizer:
 
 
 def test_Colorizer():
-    from src.improved_mask_DNN import PaddedDiffractionLayer
+    from src.Belashov.improved_mask_DNN import PaddedDiffractionLayer
 
     colorizer = Colorizer()
     samples = 60

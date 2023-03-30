@@ -32,9 +32,10 @@ class Lens(torch.nn.Module):
         super(Lens, self).__init__()
         wl_array = np.array(wl).reshape(-1,1,1)
         coord_limit = (N_pixels//2)*pixel_size
-        mesh = np.arange(-coord_limit, coord_limit, pixel_size)
+        # mesh = np.arange(-coord_limit, coord_limit, pixel_size)
+        mesh = np.linspace(-coord_limit, +coord_limit, N_pixels)
         x, y = np.meshgrid(mesh, mesh)
-        self.register_buffer('phase', torch.tensor(np.exp(-1j*np.pi/(wl_array*2*focus) * (x**2 + y**2))))
+        self.register_buffer('phase', torch.tensor(np.exp(-1j*np.pi/(wl_array*1.0*focus) * (x**2 + y**2))))
         self.register_buffer('amplitude', torch.zeros([N_pixels, N_pixels], dtype = torch.float32) + 1)
 
     def forward(self, E):
