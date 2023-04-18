@@ -244,5 +244,3 @@ def test_Colorizer():
     return
 if __name__ == '__main__':
     test_Colorizer()
-    # colorizer = Colorizer()
-    # colorizer.SetupFilters(lambdas=torch.linspace(490*nm, 500*nm, 100))

@@ -1,3 +1,4 @@
+from typing import Union, List, Tuple, Iterable
 class Formater:
     def __init__(self):
         self.EngineeringPrefixes = ['a', 'f', 'n', 'mk', 'm', '', 'K', 'M', 'G', 'T']
@@ -53,18 +54,27 @@ class Formater:
         }
 
     def Engineering(self, value, unit='', precision=3):
-        c = self.EngineeringCenter
-        sign = 1
-        if value < 0:
-            sign = -1
-            value = -value
-        while value <= 1.0 and c != 0:
-            value *= 1000
-            c -= 1
-        while value >= 1000.0 and c != len(self.EngineeringPrefixes) - 1:
-            value /= 1000
-            c += 1
-        return str(round(sign*value, precision)) + ' ' + self.EngineeringPrefixes[c] + unit
+        if value is Iterable:
+            String = '{'
+            for val in value:
+                String += self.Scientific(val, unit, precision) + ', '
+            String = String[:-2] + '}'
+            return String
+        else:
+            if value == 0:
+                return str(round(value, precision)) + ' '
+            c = self.EngineeringCenter
+            sign = 1
+            if value < 0:
+                sign = -1
+                value = -value
+            while value <= 1.0 and c != 0:
+                value *= 1000
+                c -= 1
+            while value >= 1000.0 and c != len(self.EngineeringPrefixes) - 1:
+                value /= 1000
+                c += 1
+            return str(round(sign*value, precision)) + ' ' + self.EngineeringPrefixes[c] + unit
     def Engineering_Separated(self, value, unit=''):
         c = self.EngineeringCenter
         sign = 1
@@ -82,31 +92,38 @@ class Formater:
         return self.EngineeringPrefixes[c] + unit, 1000**(self.EngineeringCenter-c)
 
     def Scientific(self, value, unit='', precision=3):
-        if value == 0:
-            return '0 ' + unit
-        c = 0
-        sign = 1
-        if (value < 0):
-            sign = -1
-            value = -value
-        while value <= 1.0:
-            value *= 10
-            c -= 1
-        while value >= 10.0:
-            value /= 10
-            c += 1
-        ps = ''
-        if c < 0:
-            ps += self.ScientificNumbers[10]
-            c = -c
-        ps_ = ''
-        if c == 0:
-            return str(round(sign*value, precision)) + ' ' + unit
-        while c != 0:
-            ps_ += self.ScientificNumbers[int(c%10)]
-            c = int(c/10)
-        ps += ps_[::-1]
-        return str(round(sign*value, precision)) + '·10' + ps + ' ' + unit
+        if value is Iterable:
+            String = '{'
+            for val in value:
+                String += self.Scientific(val, unit, precision) + ', '
+            String = String[:-2] + '}'
+            return String
+        else:
+            if value == 0:
+                return '0 ' + unit
+            c = 0
+            sign = 1
+            if (value < 0):
+                sign = -1
+                value = -value
+            while value <= 1.0:
+                value *= 10
+                c -= 1
+            while value >= 10.0:
+                value /= 10
+                c += 1
+            ps = ''
+            if c < 0:
+                ps += self.ScientificNumbers[10]
+                c = -c
+            ps_ = ''
+            if c == 0:
+                return str(round(sign*value, precision)) + ' ' + unit
+            while c != 0:
+                ps_ += self.ScientificNumbers[int(c%10)]
+                c = int(c/10)
+            ps += ps_[::-1]
+            return str(round(sign*value, precision)) + '·10' + ps + ' ' + unit
     def Scientific_Separated(self, value, unit=''):
         if value == 0:
             return '0 ' + unit
@@ -162,6 +179,34 @@ class Formater:
                 return string
         return '0us0ns'
 
+    def Memory(self, Bytes:int=0, KBytes:Union[float,int]=0, MBytes:Union[float,int]=0, GBytes:Union[float,int]=0, TBytes:Union[float,int]=0, precision=2):
+        Total   = int(Bytes + KBytes*1024 + MBytes*1024*1024 + GBytes*1024*1024*1024 + TBytes*1024*1024*1024*1024)
+
+        Bytes   = int(Total%1024)
+        Total   = int(Total/1024)
+        KBytes  = int(Total%1024)
+        Total   = int(Total/1024)
+        MBytes  = int(Total%1024)
+        Total   = int(Total/1024)
+        GBytes  = int(Total%1024)
+        Total   = int(Total/1024)
+        TBytes  = Total
+
+        bytes_array = [int(TBytes), int(GBytes), int(MBytes), int(KBytes), int(Bytes)]
+        bytes_units = ['TB', 'GB', 'MB', 'KB', 'B']
+        max_idx = 0
+        for max_idx, value in enumerate(bytes_array):
+            if value != 0:
+                break
+        value = 0
+        multiplier = 1
+        for value_ in bytes_array[max_idx:]:
+            value += value_/multiplier
+            multiplier *= 1024
+        value = value
+
+        return str(round(value, precision)) + bytes_units[max_idx]
+
     def TextStyles(self):
         return self.Styles.copy()
     def Text(self, style, parameters={}):
@@ -169,10 +214,10 @@ class Formater:
         CurrentStyle.update(parameters.items())
         return CurrentStyle
 
-    def WrappedText(self, N, text):
+    def WrappedText(self, simbols_in_line, text):
         text_ = ''
         for i, l in enumerate(text):
-            if (i+1) % N == 0:
+            if (i+1) % simbols_in_line == 0:
                 if l == ' ':
                     text_ += '\n'
                 else:
@@ -184,5 +229,28 @@ class Formater:
             else:
                 text_ += l
         return text_
+
+    def SmartWrappedText(self, text:str, max_symbols_in_line:int, separators:Union[List,Tuple]=(' ',)):
+        String = ''
+
+        while text != '':
+            if len(text) <= max_symbols_in_line:
+                String += text + '\n'
+                text = ''
+            else:
+                string = text[:max_symbols_in_line]
+                success = False
+                for n, char in reversed(list(enumerate(string))):
+                    if char in separators:
+                        string = text[:n+1]
+                        text = text[n+1:]
+                        success = True
+                        break
+                if not success:
+                    string = text[:max_symbols_in_line-1] + '-'
+                    text = text[max_symbols_in_line-1:]
+                String += string + '\n'
+
+        return String
 
 Format = Formater()

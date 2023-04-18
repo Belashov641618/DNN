@@ -125,7 +125,6 @@ class HeightMaskLayer(torch.nn.Module):
 class PaddedDiffractionLayer(torch.nn.Module):
 
     _BorderPixelsCount : int
-
     _PropagationBuffer : None
     def _init_PropagationArguments(self, wave_length, up_scaled_pixels_count, up_scaled_pixel_length, diffraction_length, space_reflection, border_pixels_count):
         # Этот код скопирован из DiffractiveLayer, но затухающие моды учитываются и добавлен учёт границы
