@@ -1,11 +1,14 @@
 .DS_Store
 data/
-models/
 results/
 
 # Own files
 Test.py
 .idea
+*data/
+*TrainedModels/
+*SavedModels/
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
