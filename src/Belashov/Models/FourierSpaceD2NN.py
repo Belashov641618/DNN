@@ -210,6 +210,14 @@ class FourierSpaceD2NN(torch.nn.Module):
     def DisableDetectors(self, state:bool=True):
         self._DetectorsEnable = not state
 
+
+    _AmplificationEnable : bool
+    def EnableAmplification(self, state:bool=True):
+        self._AmplificationEnable = state
+    def DisableAmplification(self, state:bool=True):
+        self._AmplificationEnable = not state
+
+
     _DiffractionLengthAsParameter : bool
     def DiffractionLengthAsParameter(self, mode:bool=True):
         if hasattr(self._HeightsMaskPropagationModule, 'DiffractionLengthAsParameter'):
@@ -260,10 +268,13 @@ class FourierSpaceD2NN(torch.nn.Module):
 
         self._DetectorsEnable   = True
 
+        self._AmplificationEnable = True
+
         self._DiffractionLengthAsParameter = False
 
     def forward(self, field:torch.Tensor, record_history:bool=False):
-        field = self._AmplificationModule(field)
+        if self._AmplificationEnable:
+            field = self._AmplificationModule(field)
         if record_history:
             length = 0
             history = [('Начальная амплитуда' + ': ' + Format.Engineering(length, 'm', 1), (torch.abs(field) ** 1).cpu())]

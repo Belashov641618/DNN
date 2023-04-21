@@ -10,7 +10,7 @@ from src.Belashov.Layers.AbstractLayer import AbstractLayer
 
 class DetectorsLayer(AbstractLayer):
     @staticmethod
-    def GenerateSquareDetectorsMasks(plane_length:float, total_pixels_count:int, detector_length:float=None, detectors_layout_border_ratio:float=0.9):
+    def GenerateSquareDetectorsMasks(plane_length:float, total_pixels_count:int, detector_length:float=None, detectors_layout_border_ratio:float=0.1):
         if detector_length is None:
             detector_length = plane_length * (1.0-detectors_layout_border_ratio) / 5
         if detector_length*4 > plane_length*(1.0-detectors_layout_border_ratio):
@@ -61,10 +61,12 @@ class DetectorsLayer(AbstractLayer):
             DetectorsMaskCopy = self._DetectorsMasksBuffer.clone().detach()
             self.register_buffer('_DetectorsMasksBuffer', f_resize(DetectorsMaskCopy.expand(1,-1,-1,-1), [self._PixelsCount*self._UpScaling, self._PixelsCount*self._UpScaling], interpolation=InterpolationMode.NEAREST).squeeze())
     def GetDetectorsMasksBuffer(self, to_cpu:bool=True):
+        self._launch_DelayedFunctions()
         if to_cpu:
             return deepcopy(self._DetectorsMasksBuffer).cpu()
         return deepcopy(self._DetectorsMasksBuffer)
     def GetDetectorsMasksBufferSum(self, to_cpu:bool=True):
+        self._launch_DelayedFunctions()
         if to_cpu:
             return torch.sum(deepcopy(self._DetectorsMasksBuffer)).cpu()
         return torch.sum(deepcopy(self._DetectorsMasksBuffer))

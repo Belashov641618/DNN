@@ -5,6 +5,7 @@ from typing import Union, Iterable, List, Any, Tuple, Dict
 from itertools import product
 import inspect
 from functools import partial
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -13,6 +14,35 @@ from src.AdditionalUtilities.Colorize import Colorizer
 from src.AdditionalUtilities.Formaters import Format
 from src.AdditionalUtilities.DecimalPrefixes import nm, um, mm, cm
 from src.AdditionalUtilities.TitledFigure import Titles
+
+from src.Belashov.Layers.DetectorsLayer import DetectorsLayer
+
+def StringToDataSetRedirector(data_set_name:str, train:bool=True, transformation:Any=None, input_pixels:int=None):
+
+    data_sets_root = 'data/'
+
+    data_sets_dict = {
+        'MNIST' :           (torchvision.datasets.MNIST,        ['mnist', 'Mnist']),
+        'FashionMNIST' :    (torchvision.datasets.FashionMNIST, ['FMNIST', 'Fmnist', 'fashion_mnist']),
+        'CIFAR10' :         (torchvision.datasets.CIFAR10,      ['cifar10', 'Cifar10']),
+    }
+
+    if (transformation is None) and (input_pixels is not None):
+        transformation = torchvision.transforms.Compose([
+            torchvision.transforms.ToTensor(),
+            torchvision.transforms.RandomRotation((-90, -90)),
+            torchvision.transforms.Resize(size=(input_pixels, input_pixels)),
+            torchvision.transforms.ConvertImageDtype(dtype=torch.complex64)
+        ])
+
+    if data_set_name in data_sets_dict.keys():
+        return data_sets_dict[data_set_name][0](train=train, download=True, transform=transformation, root=data_sets_root)
+    else:
+        for key, (data_set, other_names) in data_sets_dict.items():
+            if data_set_name in other_names:
+                return data_set(train=train, download=True, transform=transformation, root=data_sets_root)
+
+    raise ValueError("\033[31m\033[1m{}".format('There is no data set with name:' + data_set_name + '!'))
 
 
 def GenerateSingleUnscaledSampleMNIST(only_image=False):
@@ -61,7 +91,7 @@ def ConvertModelAttributesToString(Model:torch.nn.Module, ExcludeAttributes:Unio
             String += '(' + name + ' : ' + format_function(value) + '), '
     String = String[:-2]
     return String
-def ConvertModelToString(Model:torch.nn.Module, _string:str= '', _numeration:List=None, show_variables:bool=True):
+def ConvertModelToString(Model:torch.nn.Module, _string:str='', _numeration:List=None, show_variables:bool=True):
     if hasattr(Model, 'FinalizeChanges'):
         getattr(Model, 'FinalizeChanges')()
 
@@ -242,6 +272,8 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
     if len(input_size) == 2:
         input_size = [1] + input_size
 
+    torch.cuda.empty_cache()
+
     Model.to(device)
     Model.train()
 
@@ -255,12 +287,21 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
     delta:int = int(batch_size/2)
     while delta != 0:
         try:
-            Model(torch.rand([batch_size] + input_size).to(device))
+            for i in range(5):
+                output = Model(torch.rand([batch_size] + input_size).to(device))
+                output_ = deepcopy(output.clone().detach())
             batch_size += delta
             delta = int(delta/2)
         except torch.cuda.OutOfMemoryError:
             batch_size -= delta
-    batch_size -= 1
+    while True:
+        try:
+            for i in range(10):
+                Model(torch.rand([batch_size] + input_size).to(device))
+            break
+        except torch.cuda.OutOfMemoryError:
+            batch_size -= 1
+    torch.cuda.empty_cache()
 
     Model.eval()
     Model.cpu()
@@ -719,7 +760,9 @@ def PlotDiffractionModelOneParameterDistribution(Model:torch.nn.Module, Paramete
 
     history_length = None
     if hasattr(Model, 'DisableDetectors'):
-        getattr(Model, 'DisableDetectors')()
+        getattr(Model, 'DisableDetectors')(True)
+    elif hasattr(Model, 'EnableDetectors'):
+        getattr(Model, 'EnableDetectors')(False)
     with torch.no_grad():
         field = RescaleModule(basic_input_field)
         if 'record_history' in inspect.signature(Model.forward).parameters:
@@ -761,6 +804,115 @@ def PlotDiffractionModelOneParameterDistribution(Model:torch.nn.Module, Paramete
     if hasattr(RescaleModule, ParameterName):
         setattr(RescaleModule, ParameterName, ParameterValueRestore)
 
+    if hasattr(Model, 'DisableDetectors'):
+        getattr(Model, 'DisableDetectors')(False)
+    elif hasattr(Model, 'EnableDetectors'):
+        getattr(Model, 'EnableDetectors')(True)
+
     if show:
         plt.show()
+def PlotTroughModelPropagationSamples(Model:torch.nn.Module, data_set_name:str='MNIST', input_pixels:int=None, images:torch.Tensor=None, labels:torch.Tensor=None, samples:int=4, show=True):
+    if images is None:
+        if data_set_name is None:
+            raise ValueError("\033[31m\033[1m{}".format('PlotTroughModelPropagationSamples: define "data_set_name" or "initial_images" in function call!'))
+        if input_pixels is None:
+            up_scaling = 0
+            if hasattr(Model, 'UpScaling'):
+                up_scaling = getattr(Model, 'UpScaling')
+            else : raise AttributeError("\033[31m\033[1m{}".format('PlotTroughModelPropagationSamples: Model must have attribute "UpScaling" or define input_pixels in function call!'))
+            pixels_count = 0
+            if hasattr(Model, 'PixelsCount'):
+                pixels_count = getattr(Model, 'PixelsCount')
+            else : raise AttributeError("\033[31m\033[1m{}".format('PlotTroughModelPropagationSamples: Model must have attribute "UpScaling" or define input_pixels in function call!'))
+            input_pixels = up_scaling*pixels_count
+
+        loader = TorchDataLoader(StringToDataSetRedirector(data_set_name, train=False, input_pixels=input_pixels), batch_size=samples, shuffle=True, num_workers=0)
+        images, labels = next(iter(loader))
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    images = images.to(device)
+    Model.to(device)
+
+    output = None
+    history = None
+    history_length = None
+    with torch.no_grad():
+        if 'record_history' in inspect.signature(Model.forward).parameters:
+            output, history = Model.forward(images, record_history=True)
+        else:
+            output, history = Model.forward(images)
+        history_length = len(history)
+
+    output = output.cpu()
+    Model.cpu()
+
+    Cols = history_length
+    Rows = samples
+
+    detectors_module = None
+    for module in Model.modules():
+        if isinstance(module, DetectorsLayer):
+            Cols += 1
+            detectors_module = module
+            break
+
+    fig = plt.figure(figsize=(12*Cols/Rows, 12))
+    fig.suptitle('Распространение излучения через сеть', **Format.Text('BigHeader'))
+    Fig = Titles(fig, (Cols, Rows), leftspace=0.05, rightspace=0.05)
+    Fig.add_bottom_annotation(Format.SmartWrappedText(ConvertModelAttributesToString(Model), 180, ','), **Format.Text('Header'))
+
+    if hasattr(Model, 'PlaneLength'):
+        PlaneLength = getattr(Model, 'PlaneLength')
+        unit, mult = Format.Engineering_Separated(PlaneLength, 'm')
+        extent = [-PlaneLength * mult / 2, +PlaneLength * mult / 2, -PlaneLength * mult / 2, +PlaneLength * mult / 2]
+    else:
+        unit = ''
+        mult = 1.0
+        extent = [-0.5, +0.5, -0.5, +0.5]
+
+    plot_images = []
+    for col, history_col in enumerate(history):
+        name, images = None, None
+        if isinstance(history_col[0], str):
+            name, images = history_col
+        else:
+            name = 'Срез №' + str(col + 1)
+            images = history_col
+
+        if (images.size(1) != 1) and hasattr(Model, 'WaveLength'):
+            colorizer = Colorizer()
+            images = colorizer.Colorize(images, getattr(Model, 'WaveLength'))
+        else:
+            images = torch.sum(images, dim=1)
+
+        plot_images.append([])
+        for row, image in enumerate(images):
+            axis = Fig.add_axes((col+1, row+1))
+            image_ = axis.imshow(image.swapaxes(0, 1), origin='lower', extent=extent, aspect='auto')
+            axis.set_title(name, **Format.Text('Default', {'fontsize': 9}))
+            axis.xaxis.set_tick_params(labelsize=8)
+            axis.yaxis.set_tick_params(labelsize=8)
+            axis.set_xlabel('X, ' + unit, Format.Text('Caption'))
+            axis.set_ylabel('Y, ' + unit, Format.Text('Caption', {'rotation': 90}))
+
+            plot_images[col].append(image_)
+
+    if detectors_module is not None:
+        detectors_masks = torch.mean(detectors_module.GetDetectorsMasksBuffer(), dim=0)
+        for row in range(Rows):
+            axis = Fig.add_axes((Cols, row+1))
+            axis.imshow(detectors_masks.swapaxes(0, 1), origin='lower', extent=extent, aspect='auto', cmap='gray')
+            axis.set_title('Маски детекторов', **Format.Text('Default', {'fontsize': 9}))
+            axis.xaxis.set_tick_params(labelsize=8)
+            axis.yaxis.set_tick_params(labelsize=8)
+            axis.set_xlabel('X, ' + unit, Format.Text('Caption'))
+            axis.set_ylabel('Y, ' + unit, Format.Text('Caption', {'rotation': 90}))
+
+    if show:
+        plt.show()
+
+    return plot_images
+
+
+
 

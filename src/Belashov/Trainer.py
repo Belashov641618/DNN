@@ -137,7 +137,7 @@ class Trainer:
         self._Model.eval()
         self.CalculateAccuracy()
 
-    def Train(self, epochs:int, device:Any=None, loss_buffer_size:int=20, show_average_absolute_gradient:bool=True):
+    def Train(self, epochs:int, device:Any=None, loss_buffer_size:int=20, show_average_absolute_gradient:bool=True, initial_accuracy_test:bool=True):
 
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -145,8 +145,9 @@ class Trainer:
         self._Model.to(device)
         self._LossFunction.to(device)
 
-        self._Model.eval()
-        self.CalculateAccuracy()
+        if initial_accuracy_test:
+            self._Model.eval()
+            self.CalculateAccuracy()
 
         for epoch in range(epochs):
             self.TrainEpoch(device, loss_buffer_size=loss_buffer_size, show_average_absolute_gradient=show_average_absolute_gradient)
