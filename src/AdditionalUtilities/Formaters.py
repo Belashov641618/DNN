@@ -251,6 +251,9 @@ class Formater:
                     text = text[max_symbols_in_line-1:]
                 String += string + '\n'
 
+        if String[-1] == '\n':
+            String = String[:-1]
+
         return String
 
 Format = Formater()

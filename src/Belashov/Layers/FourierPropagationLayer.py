@@ -56,7 +56,7 @@ class FourierPropagationLayer(AbstractLayer):
     _SpaceReflection : torch.Tensor
     @property
     def SpaceReflection(self):
-        return self._WaveLength
+        return self._SpaceReflection
     @SpaceReflection.setter
     def SpaceReflection(self, space_reflection:Union[float,Iterable,torch.Tensor]):
         self._SpaceReflection = (space_reflection.to(self._tensor_complex_type).requires_grad_(False) if torch.is_tensor(space_reflection) else torch.tensor([space_reflection] if type(space_reflection) is float  else space_reflection, requires_grad=False, dtype=self._tensor_float_type))

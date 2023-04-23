@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import DataLoader as TorchDataLoader
 import torchvision
+import numpy
 from typing import Union, Iterable, List, Any, Tuple, Dict
 from itertools import product
 import inspect
@@ -66,11 +67,13 @@ def ConvertModelAttributesToString(Model:torch.nn.Module, ExcludeAttributes:Unio
         'MaskReflection':       ('Коэффициент преломления масок',           partial(Format.Scientific,  unit='',    precision=1)),
         'PlaneLength':          ('Размер масок',                            partial(Format.Engineering, unit='m',   precision=1)),
         'PixelsCount':          ('Количество пикселей масок',               partial(Format.Engineering, unit='шт',  precision=1)),
-        'UpScaling':            ('Множитель разрешения',                    partial(Format.Scientific,  unit='',    precision=1)),
+        'UpScaling':            ('Множитель разрешения',                    lambda x: str(x)),
         'DiffractionLength':    ('Расстояние между масками',                partial(Format.Engineering, unit='m',   precision=1)),
         'MaskBorderLength':     ('Паддинг при диффракции между масками',    partial(Format.Engineering, unit='m',   precision=1)),
         'LensBorderLength':     ('Паддинг при диффракции вокруг линз',      partial(Format.Engineering, unit='m',   precision=1)),
-        'FocusLength':          ('Фокусное расстояние линз',                partial(Format.Engineering, unit='m',   precision=1))
+        'FocusLength':          ('Фокусное расстояние линз',                partial(Format.Engineering, unit='m',   precision=1)),
+
+        'BorderLength':         ('Паддинг при диффракции',                  partial(Format.Engineering, unit='m',   precision=1))
     }
 
     if CombineDicts and (AttributeToNameAndFormat is not None):
@@ -309,7 +312,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
     return batch_size
 
 
-def CalculatePropagationLayerEmission(Layer:torch.nn.Module, initial_field:torch.tensor, length_limits:Iterable=None, length_steps:int=100, relative_cut_position:float=0.5, use_fast_recurrent_method:bool=False):
+def CalculatePropagationLayerEmission(Layer:torch.nn.Module, initial_field:torch.tensor, length_limits:Iterable=None, length_steps:int=200, relative_cut_position:float=0.5, use_fast_recurrent_method:bool=False):
     """
     :param Layer: Слой, считающий распространение света.
     :param initial_field: Начальное распределение поля.
@@ -609,7 +612,7 @@ def DrawThroughModelPropagation(axes:Union[List,Tuple,Iterable], Model:torch.nn.
     return images
 
 
-def PlotDiffractionSystemOneParameterDistribution(ModuleList:Union[torch.nn.ModuleList, List, torch.nn.Module], ParameterName:str, ParameterValues:Union[List,Iterable], basic_input_field:torch.Tensor=None, RescaleModule:torch.nn.Module=None, show=True):
+def PlotDiffractionSystemOneParameterDistribution(ModuleList:Union[torch.nn.ModuleList,List,torch.nn.Module], ParameterName:str, ParameterValues:Union[List,Tuple,Iterable], basic_input_field:torch.Tensor=None, RescaleModule:torch.nn.Module=None, show:bool=True):
     """
     Внимание, данная функция будет варьировать аттрибут, только если он есть внутри слоя
     :param ModuleList: Лист, содержащий все слои сети.
@@ -722,7 +725,7 @@ def PlotDiffractionSystemOneParameterDistribution(ModuleList:Union[torch.nn.Modu
         plt.show()
 
     return
-def PlotDiffractionModelOneParameterDistribution(Model:torch.nn.Module, ParameterName:str, ParameterValues:Union[List,Iterable], ParameterFormat=None, basic_input_field:torch.Tensor=None, RescaleModule:torch.nn.Module=None, ForceModelParametersZero:bool=False, show=True):
+def PlotDiffractionModelOneParameterDistribution(Model:torch.nn.Module, ParameterName:str, ParameterValues:Union[List,Iterable], ParameterFormat:Any=None, basic_input_field:torch.Tensor=None, RescaleModule:torch.nn.Module=None, ForceModelParametersZero:bool=False, show:bool=True):
     ParameterValues = list(ParameterValues)
 
     if ParameterFormat is None:
@@ -811,7 +814,7 @@ def PlotDiffractionModelOneParameterDistribution(Model:torch.nn.Module, Paramete
 
     if show:
         plt.show()
-def PlotTroughModelPropagationSamples(Model:torch.nn.Module, data_set_name:str='MNIST', input_pixels:int=None, images:torch.Tensor=None, labels:torch.Tensor=None, samples:int=4, show=True):
+def PlotTroughModelPropagationSamples(Model:torch.nn.Module, data_set_name:str='MNIST', input_pixels:int=None, images:torch.Tensor=None, labels:torch.Tensor=None, samples:int=4, show:bool=True):
     if images is None:
         if data_set_name is None:
             raise ValueError("\033[31m\033[1m{}".format('PlotTroughModelPropagationSamples: define "data_set_name" or "initial_images" in function call!'))
@@ -912,7 +915,93 @@ def PlotTroughModelPropagationSamples(Model:torch.nn.Module, data_set_name:str='
         plt.show()
 
     return plot_images
+def PlotModelSinglePixelEmissionComparisonParametersSynchronouslyVariation(Model:torch.nn.Module, ParameterNameList:List[str], ParameterValuesList:List[Union[List, Iterable, Tuple, torch.Tensor]], ParameterFormatList:List[Any]=None, Title:str=None, norm_on_reference:bool=True, show:bool=True):
+    for ParameterName in ParameterNameList:
+        if not hasattr(Model, ParameterName):
+            raise AttributeError("\033[31m\033[1m{}".format('PlotModelSinglePixelEmissionComparisonTwoParameterSynchronouslyVariation: Model must have attribute "' + ParameterName + '"!'))
+    for i, ParameterValues in enumerate(ParameterValuesList):
+        if not isinstance(ParameterValues, list):
+            if torch.is_tensor(ParameterValues):
+                ParameterValues = ParameterValues.tolist()
+            else:
+                ParameterValues = list(ParameterValues)
+            ParameterValuesList[i] = ParameterValues
+        if len(ParameterValues) != len(ParameterValuesList[0]):
+            raise ValueError("\033[31m\033[1m{}".format('PlotModelSinglePixelEmissionComparisonTwoParameterSynchronouslyVariation: "Parameter0Values" and "Parameter1Values" must have same length!'))
+    for i, ParameterFormat in enumerate(ParameterFormatList):
+        if ParameterFormat is None:
+            ParameterFormat = lambda x: str(x)
+        ParameterFormatList[i] = ParameterFormat
+    if Title is None:
+        Title = 'Распространение излучения через модель'
 
+    if hasattr(Model, 'DisableDetectors'):
+        getattr(Model, 'DisableDetectors')()
+    elif hasattr(Model, 'EnableDetectors'):
+        getattr(Model, 'EnableDetectors')(False)
+
+    Samples = len(ParameterValuesList[0])
+
+    Cols = Samples
+    Rows = 3
+
+    fig = plt.figure(figsize=(12*Cols/Rows, 12))
+    fig.suptitle(Title, **Format.Text('BigHeader'))
+    Fig = Titles(fig, (Cols, Rows), leftspace=0.05, rightspace=0.05, topspace=0.035*len(ParameterNameList), hspace=0.1)
+    Fig.add_bottom_annotation(Format.SmartWrappedText(ConvertModelAttributesToString(Model, ExcludeAttributes=ParameterNameList), 120, ','), **Format.Text('Header'))
+
+    Reference = None
+    for col in range(Samples):
+        string = ''
+        for ParameterName, ParameterValues, ParameterFormat in zip(ParameterNameList, ParameterValuesList, ParameterFormatList):
+            setattr(Model, ParameterName, ParameterValues[col])
+            string += ParameterName + ' : ' + ParameterFormat(ParameterValues[col]) + '\n'
+        string = string[:-1]
+
+        axis = Fig.add_axes((col+1,1))
+        axis.set_title(string, **Format.Text('Default', {'fontweight':'bold'}))
+        image = DrawPropagationLayerSinglePixelEmission(axis, Model, draw_lines=False)
+        if Reference is None:
+            Reference = torch.tensor(image.get_array())
+
+        Difference = torch.abs(Reference - torch.tensor(image.get_array()))
+        if norm_on_reference:
+            Difference = Difference/Reference
+
+        axis = Fig.add_axes((col+1,2))
+        axis.set_title(Format.SmartWrappedText('Попиксельная ' + ('относительная' if norm_on_reference else '') + ' разница', 40), **Format.Text('Default', {'fontweight': 'bold'}))
+        axis.xaxis.set_tick_params(labelsize=8)
+        axis.yaxis.set_tick_params(labelsize=8)
+        axis.set_xlabel('Номер пикселя вдоль плоскости', Format.Text('Caption'))
+        axis.set_ylabel('Номер пикселя вдоль распространения', Format.Text('Caption', {'rotation': 90}))
+        image = axis.imshow(Difference, origin='lower', aspect='auto')
+        # cbar = fig.colorbar(image, ax=axis, shrink=0.6, location='right')
+        # cbar.ax.tick_params(labelsize=8)
+        if col == 0:
+            axis.text(Reference.size(1)/2, Reference.size(0)/2, 'Reference', **Format.Text('Header'))
+            # cbar.set_ticks([0, 1])
+
+        axis = Fig.add_axes((col+1,3))
+        axis.set_title(Format.SmartWrappedText('Попиксельная' + ('относительная' if norm_on_reference else '') + 'разница, усреднение вдоль направления распространения и среднеквадратичное отклонение', 40), **Format.Text('Default', {'fontweight': 'bold'}))
+        axis.xaxis.set_tick_params(labelsize=8)
+        axis.yaxis.set_tick_params(labelsize=8)
+        axis.set_xlabel('Номер пикселя вдоль распространения', Format.Text('Caption'))
+        axis.set_ylabel('Относительная разница', Format.Text('Caption', {'rotation': 90}))
+        axis.plot(torch.mean(Difference, dim=1), linewidth=1.5, color='maroon', alpha=1.0)
+        axis.plot(torch.std(Difference, dim=1)/torch.sqrt(torch.tensor(Reference.size(0))), linestyle='--',  linewidth=1.0, color='blue', alpha=1.0)
+        axis.grid(True)
+        if col == 0:
+            axis.text(Reference.size(0)/2, 0.01, 'Reference', **Format.Text('Header'))
+
+
+
+    if hasattr(Model, 'EnableDetectors'):
+        getattr(Model, 'EnableDetectors')()
+    elif hasattr(Model, 'DisableDetectors'):
+        getattr(Model, 'DisableDetectors')(False)
+
+    if show:
+        plt.show()
 
 
 
