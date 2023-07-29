@@ -46,11 +46,46 @@ class DetectorsLayer(AbstractLayer):
             DetectorsMasks[num, rectangle[0][0]:rectangle[1][0]+1, rectangle[0][1]:rectangle[1][1]+1] = torch.ones(rectangle[1][0]-rectangle[0][0]+1, rectangle[1][1]-rectangle[0][1]+1)
 
         return DetectorsMasks
+    @staticmethod
+    def GeneratePolarDetectorsMasks(plane_length:float, total_pixels_count:int, detector_length:float=None, detectors_layout_border_ratio:float=0.1):
+        if detector_length is None:
+            detector_length = plane_length * (1.0-detectors_layout_border_ratio) / 5
+        if detector_length*4 > plane_length*(1.0-detectors_layout_border_ratio):
+            raise ValueError('Detector length is to large')
+
+        initial_detector_centers = torch.tensor([
+            [-detector_length,      +detector_length],
+            [0,                     +detector_length],
+            [+detector_length,      +detector_length],
+
+            [-1.5*detector_length,  0],
+            [-0.5*detector_length,  0],
+            [+0.5*detector_length,  0],
+            [+1.5*detector_length,  0],
+
+            [-detector_length,      -detector_length],
+            [0,                     -detector_length],
+            [+detector_length,      -detector_length]
+        ], dtype=torch.float64)
+        initial_detector_centers = initial_detector_centers * (plane_length * (1.0-detectors_layout_border_ratio) / (3.0*detector_length) - 1.0/3.0)
+
+        DetectorsMasks = torch.zeros(len(initial_detector_centers), total_pixels_count, total_pixels_count)
+        xx, yy = torch.meshgrid(torch.linspace(-plane_length/2, +plane_length/2, total_pixels_count), torch.linspace(-plane_length/2, +plane_length/2, total_pixels_count), indexing='ij')
+
+        for i, center in enumerate(initial_detector_centers):
+            x0 = center[0]
+            y0 = center[1]
+            R = torch.sqrt((xx-x0)**2 + (yy-y0)**2)
+            DetectorsMasks[i] = 1.0 / (R**0.5 + 1)
+
+        return DetectorsMasks
 
     @staticmethod
     def GenerateDetectorsMasksStringRedirector(generating_type:str, plane_length:float, total_pixels_count:int):
         if generating_type == 'Square':
             return DetectorsLayer.GenerateSquareDetectorsMasks(plane_length, total_pixels_count)
+        elif generating_type == 'Polar':
+            return DetectorsLayer.GeneratePolarDetectorsMasks(plane_length, total_pixels_count)
         else:
             raise ValueError("\033[31m\033[1m{}".format('GenerateDetectorsMasksStringRedirector: there is no generating_type with name ' + generating_type + '!'))
 
@@ -109,11 +144,10 @@ class DetectorsLayer(AbstractLayer):
         super(DetectorsLayer, self).forward(field)
         results = torch.sum((torch.abs(field)**2).expand(10,-1,-1,-1,-1).movedim(0,2) * self._DetectorsMasksBuffer, dim=(1,3,4))
 
-        field_integral = torch.sum(torch.abs(field)**2, dim=(1, 2, 3))
-        results = results / field_integral.expand(10, -1).swapdims(0,1)
+        # field_integral = torch.sum(torch.abs(field)**2, dim=(1, 2, 3))
+        # results = results / field_integral.expand(10, -1).swapdims(0,1)
 
-        # max_results = torch.mean(results, dim=1)
-        # results = results / max_results.expand(10,-1).swapdims(0,1)
+        results = results / (results.max(dim=1).values[:, None])
 
         # results = torch.softmax(results, dim=1)
 

@@ -150,7 +150,7 @@ class Formater:
             ps_ += self.ScientificNumbers[int(c%10)]
             c = int(c/10)
         ps += ps_[::-1]
-        return '10' + ps + ' ' + unit, 10**(-power)
+        return '·10' + ps + ' ' + unit, 10**(-power)
 
     def Time(self, seconds=0, days=0, hours=0, minutes=0, millis=0, micros=0, nanos=0):
         time = seconds + millis*1.0E-3 + micros*1.0E-6 + nanos*1.0E-9

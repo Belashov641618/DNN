@@ -254,6 +254,8 @@ def ConvertModelToString(Model:torch.nn.Module, _string:str='', _numeration:List
 def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List,int]=None):
     if not torch.cuda.is_available():
         raise SystemError("\033[31m\033[1m{}".format('CalculateMaximumBatchSize: Torch cuda is not avaliable!'))
+    if hasattr(Model, 'FinalizeChanges'):
+        getattr(Model, 'FinalizeChanges')()
 
     device = torch.device('cuda')
 
@@ -288,6 +290,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
         except torch.cuda.OutOfMemoryError:
             break
     delta:int = int(batch_size/2)
+    batch_size += 1
     while delta != 0:
         try:
             for i in range(5):
@@ -297,7 +300,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
             delta = int(delta/2)
         except torch.cuda.OutOfMemoryError:
             batch_size -= delta
-    while True:
+    while batch_size != 0:
         try:
             for i in range(10):
                 Model(torch.rand([batch_size] + input_size).to(device))

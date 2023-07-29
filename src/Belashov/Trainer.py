@@ -1,6 +1,7 @@
 import torch
 import numpy
 from typing import Union, List, Iterable, Tuple, Any
+import inspect
 from torch.utils.data import DataLoader
 import torchvision
 from src.AdditionalUtilities.CycleTimePredictor import CycleTimePredictor
@@ -62,7 +63,8 @@ class Trainer:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self._Model.to(device)
-        self._LossFunction.to(device)
+        if inspect.isclass(self._LossFunction) and hasattr(self._LossFunction, 'to'):
+            self._LossFunction.to(device)
 
         Total:int = 0
         Correct:int = 0
@@ -83,13 +85,46 @@ class Trainer:
 
         return Percent
 
-    def TrainEpoch(self, device:Any=None, loss_buffer_size=20, show_average_absolute_gradient:bool=True):
+    def _EpochStep(self, device, images, labels, custom_optimizer_step:bool=False):
+        images = images.to(device)
+        labels = labels.to(device)
+
+        output = self._Model(images)
+        if isinstance(self._LossFunction, torch.nn.CrossEntropyLoss):
+            loss = self._LossFunction(output, labels)
+        else:
+            labels = torch.eye(output.size(1), output.size(1), device=device, dtype=output.dtype, requires_grad=True)[labels]
+            loss = self._LossFunction(output, labels)
+
+        # torch.autograd.detect_anomaly()
+
+        self._Optimizer.zero_grad()
+        loss.backward()
+        self._Optimizer.step()
+
+        if custom_optimizer_step:
+            output = self._Model(images)
+
+            loss_ = self._LossFunction(output, labels)
+
+            if loss_.item() >= loss.item():
+                for param_group in self._Optimizer.param_groups:
+                    param_group['lr'] = param_group['lr'] * 0.95
+                    # param_group['lr'] = param_group['lr'] * 0.75
+            else:
+                for param_group in self._Optimizer.param_groups:
+                    param_group['lr'] = param_group['lr'] * 1.05
+                    # param_group['lr'] = param_group['lr'] * 1.25
+
+        return loss
+    def _EpochTrain(self, device:Any=None, loss_buffer_size=20, show_average_absolute_gradient:bool=True, custom_optimizer_step:bool=False):
 
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self._Model.to(device)
-        self._LossFunction.to(device)
+        if inspect.isclass(self._LossFunction) and hasattr(self._LossFunction, 'to'):
+            self._LossFunction.to(device)
 
         loss_buffer_first_iter = True
         loss_buffer = numpy.zeros(loss_buffer_size)
@@ -103,6 +138,10 @@ class Trainer:
             gradient_string_function = lambda: 'Средний модуль градиента: ' + Format.Scientific((torch.mean(torch.abs(torch.cat([param.grad.view(-1) for param in self._Model.parameters() if param.grad is not None]))).item() if len([p.grad.view(-1) for p in self._Model.parameters() if p.grad is not None]) > 0 else 0.0),'')
             CycleStringFunctions.append(gradient_string_function)
 
+        if custom_optimizer_step:
+            mean_learning_rate_string_function = lambda: 'Скорость обучения: ' + Format.Scientific(sum([param_group['lr'] for param_group in self._Optimizer.param_groups]) / len(self._Optimizer.param_groups))
+            CycleStringFunctions.append(mean_learning_rate_string_function)
+
         if hasattr(self._Model, '_DiffractionLengthAsParameter') and hasattr(self._Model, 'DiffractionLength'):
             if getattr(self._Model, '_DiffractionLengthAsParameter'):
                 diffraction_length_function = lambda: 'Расстояние между масками: ' + Format.Engineering(getattr(self._Model, 'DiffractionLength') ,'m')
@@ -110,22 +149,7 @@ class Trainer:
 
         self._Model.train()
         for images, labels in CycleTimePredictor(self._TrainLoader, CycleStringFunctions):
-            images = images.to(device)
-            labels = labels.to(device)
-
-            output = self._Model(images)
-
-            if isinstance(self._LossFunction, torch.nn.CrossEntropyLoss):
-                loss = self._LossFunction(output, labels)
-            else:
-                labels = torch.eye(output.size(1), output.size(1), device=device, dtype=output.dtype, requires_grad=True)[labels]
-                loss = self._LossFunction(output, labels)
-
-            # torch.autograd.detect_anomaly()
-
-            self._Optimizer.zero_grad()
-            loss.backward()
-            self._Optimizer.step()
+            loss = self._EpochStep(device, images, labels, custom_optimizer_step=custom_optimizer_step)
 
             if loss_buffer_first_iter:
                 loss_buffer.fill(loss.item())
@@ -136,18 +160,18 @@ class Trainer:
             loss_average = numpy.mean(loss_buffer)
         self._Model.eval()
         self.CalculateAccuracy()
-
-    def Train(self, epochs:int, device:Any=None, loss_buffer_size:int=20, show_average_absolute_gradient:bool=True, initial_accuracy_test:bool=True):
+    def Train(self, epochs:int, device:Any=None, loss_buffer_size:int=20, show_average_absolute_gradient:bool=True, initial_accuracy_test:bool=True, custom_optimizer_step:bool=False):
 
         if device is None:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self._Model.to(device)
-        self._LossFunction.to(device)
+        if inspect.isclass(self._LossFunction) and hasattr(self._LossFunction, 'to'):
+            self._LossFunction.to(device)
 
         if initial_accuracy_test:
             self._Model.eval()
             self.CalculateAccuracy()
 
         for epoch in range(epochs):
-            self.TrainEpoch(device, loss_buffer_size=loss_buffer_size, show_average_absolute_gradient=show_average_absolute_gradient)
+            self._EpochTrain(device, loss_buffer_size=loss_buffer_size, show_average_absolute_gradient=show_average_absolute_gradient, custom_optimizer_step=custom_optimizer_step)
