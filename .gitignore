@@ -5,8 +5,6 @@ results/
 # Own files
 Test.py
 .idea
-*data/
-*TrainedModels/
 *SavedModels/
 
 
@@ -141,3 +139,6 @@ dmypy.json
 .pyre/
 /src/FileImprovedD2NN.data
 /Figures/
+/TrainedModels/
+/src/ModelsExaminer/ModelsData/TrainedModels/*
+/src/ModelsExaminer/ModelsData/TrainedModels/

@@ -1,6 +1,6 @@
 import torch
 import numpy
-from typing import Union, List, Iterable, Tuple, Any
+from typing import Union, List, Tuple, Any
 import inspect
 from torch.utils.data import DataLoader
 import torchvision
