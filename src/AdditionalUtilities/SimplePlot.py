@@ -574,9 +574,9 @@ class TiledPlot:
         self._init_graphs_texts()
         self._init_paddings()
         self._init_highlighters()
-    def show    (self, finalize:bool=True):
+    def show    (self, block:bool=True, finalize:bool=True):
         if finalize: self.finalize()
-        plt.show()
+        plt.show(block=block)
     def finalize(self):
         self._find_best_construction()
     def examine_virtual_figure_construction(self):

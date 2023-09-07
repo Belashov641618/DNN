@@ -8,11 +8,19 @@ from copy import deepcopy
 
 import torch.nn
 
+from src.AdditionalUtilities.Formaters import Format
+
 from src.ModelsExaminer.ModelsData.ModelParametersDicts.Utilities import GenerateModelParametersDict
+from src.ModelsExaminer.Utilities.DataBaseTrainer import DataBaseTrainer
+
+from src.AdditionalUtilities.UniversalTestsAndOther import PlotTroughModelPropagationSamples
+from src.AdditionalUtilities.SimplePlot import TiledPlot
 
 _ABSOLUTE_PATH = __file__ + '/../'
 
 class DataBase:
+    # Основные переменные и взаимодействие с ними
+    #   Название типа хранимых моделей и сам тип
     _ModelType : Any
     _ModelName : str
     @property
@@ -30,7 +38,7 @@ class DataBase:
     def _changed_ModelName(self):
         self._reset_ParametersDict()
         self._reset_DataBaseConnection()
-
+    #   Параметры которые ожидаются у модели и способ их хранения
     _ParametersDict : Dict
     def _reset_ParametersDict(self):
         file_name = _ABSOLUTE_PATH + 'ModelParametersDicts/' + self._ModelName + '_ParametersDict.py'
@@ -52,7 +60,7 @@ class DataBase:
         for key in self._ParametersDict.keys():
             if isinstance(self._ParametersDict[key]['Format'], str):
                 self._ParametersDict[key]['Format'] = pickle.loads(bytes.fromhex(self._ParametersDict[key]['Format']))
-
+    #   Соединение базы данных и прочие методы
     _DataBaseConnection : sqlite3.Connection
     def _reset_DataBaseConnection(self):
         file_name = _ABSOLUTE_PATH + 'TrainedModels/' + self._ModelName + '_ModelsBase.db'
@@ -81,50 +89,32 @@ class DataBase:
         self._DataBaseConnection.execute('DROP TABLE TrainedModels')
         self._create_DataBase()
 
+
+    # Внутренние методы
+    def _pull_parameters_from_model(self, model:torch.nn.Module):
+        parameters = {}
+        for key in self._ParametersDict.keys():
+            if not hasattr(model, key): raise AttributeError("\033[31m\033[1m{}".format('У предоставленной модели отсутсвует аттрибут ' + key + '!'))
+            value = getattr(model, key)
+            if isinstance(value, torch.Tensor):
+                if torch.numel(value) == 1:     value = value.item()
+                else:                           value = list(value)
+            parameters[key] = value
+        return parameters
+
+
+    # Конструктор, диструктор и операторы
     def __init__(self, model:Union[str, torch.nn.Module]):
         self.ModelName = model
+        self._initialize_selection()
+        self._initialize_Trainer()
     def __del__(self):
         if hasattr(self, '_DataBaseConnection') and self._DataBaseConnection is not None:
             self._DataBaseConnection.commit()
             self._DataBaseConnection.close()
 
-    def CheckExistence(self, parameters_dict:Dict):
-        parameters_value_list = []
-        parameters_names_list = []
-        for database_column in self._get_DataBaseColumns():
-            if database_column in self._ParametersDict:
-                parameters_value_list.append(parameters_dict[database_column])
-                parameters_names_list.append(database_column)
-        cursor = self._DataBaseConnection.cursor()
-        cursor.execute('SELECT * FROM TrainedModels WHERE ' + ' AND '.join([key + '=?' for key in parameters_names_list]), parameters_value_list)
-        return cursor.fetchone()
-    def AddModel(self, model:torch.nn.Module, final_accuracy:float=0.0, train_info:Dict=None):
-        if train_info is None: train_info = json.dumps({})
 
-        parameters_values_dict = {}
-        for parameter_name in self._ParametersDict.keys():
-            if not hasattr(model, parameter_name): raise AttributeError("\033[31m\033[1m{}".format('У предоставленной модели отсутсвует аттрибут ' + parameter_name + '!'))
-            parameter_value = getattr(model, parameter_name)
-            if torch.is_tensor(parameter_value):
-                if parameter_value.numel() == 1:
-                    parameter_value = parameter_value.item()
-                else: raise ValueError("\033[31m\033[1m{}".format('Параметр ' + parameter_name + ' явняется не еденичным тензором!' + str(parameter_value)))
-            parameters_values_dict[parameter_name] = parameter_value
-        parameters_values_dict['FinalAccuracy'] = final_accuracy
-        parameters_values_dict['TrainInfo'] = train_info
-        parameters_values_dict['File'] = pickle.dumps(model)
-
-        if self.CheckExistence(parameters_values_dict):
-            answer = input('\033[93m{}\033[0m'.format('Модель с теми же самыми параметрами уже существует, хотите заменить её? (Y/N): '))
-            if answer != 'Y':
-                return
-            self.DeleteModel(parameters_values_dict)
-
-        parameters_value_list = [parameters_values_dict[key] for key in self._get_DataBaseColumns() if key not in ['Id']]
-        cursor = self._DataBaseConnection.cursor()
-        cursor.execute('INSERT INTO TrainedModels (' + ', '.join(parameters_values_dict.keys()) + ') Values (' + ', '.join(['?']*len(parameters_value_list)) + ')', parameters_value_list)
-        self._DataBaseConnection.commit()
-
+    # Селектор базы данных и действия с выделением
     _SelectedIds : List[int]
     @property
     def selection(self):
@@ -159,7 +149,6 @@ class DataBase:
                     else:
                         queries.append(key + ' = ' + str(value))
                 query = 'SELECT Id FROM TrainedModels WHERE ' + ' AND '.join(queries)
-
                 cursor = self._self._DataBaseConnection.cursor()
                 cursor.execute(query)
                 self._self._SelectedIds = [IdT_[0] for IdT_ in cursor.fetchall()]
@@ -244,36 +233,190 @@ class DataBase:
                             strings.append(column_separator.join(values))
                         return row_separator.join(strings)
                 return Table(self._self)
+            def train(self, echo:bool=True):
+                if echo: print('Pulling model files.')
+                query = 'SELECT File FROM TrainedModels WHERE Id IN (' + ', '.join([str(Id) for Id in self._self._SelectedIds]) + ')'
+                cursor = self._self._DataBaseConnection.cursor()
+                cursor.execute(query)
+                files = cursor.fetchall()
+                for i, file in enumerate(files):
+                    if echo: print('Training model #' + str(i+1))
+                    model = pickle.loads(file[0])
+                    self._self._Trainer.model = model
+                    if echo: print('Trainer properties: ' + self._self.trainer.info)
+
+                    model.FinalizeChanges()
+                    Plot = TiledPlot(25, 12)
+                    Plot.title('Сравнение дифракционных масок до и после обучения')
+
+                    heights1 = model.Heights()
+                    for n, matrix in enumerate(heights1):
+                        axes = Plot.axes.add(n, 0)
+                        Plot.graph.title('Маска №' + str(n+1))
+                        axes.imshow(matrix)
+
+                    PlotTroughModelPropagationSamples(model, show=False)
+                    self._self._Trainer.train(echo=echo)
+                    PlotTroughModelPropagationSamples(model, show=False)
+
+                    heights2 = model.Heights()
+                    for n, matrix in enumerate(heights2):
+                        axes = Plot.axes.add(n, 1)
+                        Plot.graph.title('Маска №' + str(n + 1))
+                        axes.imshow(matrix)
+
+                    for n, (matrix1, matrix2) in enumerate(zip(heights1, heights2)):
+                        difference = 100.0*(matrix2 - matrix1)/matrix2
+                        axes = Plot.axes.add(n, 2)
+                        Plot.graph.title('Маска №' + str(n + 1))
+                        axes.imshow(difference)
+                        Plot.graph.description('Максимальное изменение: ' + Format.Scientific(torch.max(difference).item(), '%'))
+
+                    Plot.description.row.left('До обучения',    0)
+                    Plot.description.row.left('После обучения', 1)
+                    Plot.description.row.left('Разница',        2)
+                    Plot.show(block=True)
+
+                if echo: print('Done!')
 
         return Selector(self)
+    def _initialize_selection(self):
+        self._SelectedIds = []
 
-def Test():
-    from src.Belashov.Models.FourierSpaceD2NN import FourierSpaceD2NN
-    Base = DataBase(FourierSpaceD2NN())
 
-    import random
-    n = 20
-    limits = {
-        'masks_count'                       : (2, 8, int),
-        'wave_length'                       : (100.0E-9, 1000.0E-9, float),
-        'space_reflection'                  : (1.0, 1.5, float),
-        'mask_reflection'                   : (1.0, 1.5, float),
-        'plane_length'                      : (1.0E-3, 10.0E-3, float),
-        'pixels_count'                      : (10, 100, int),
-        'up_scaling'                        : (1, 50, int),
-        'mask_interspacing'                 : (5.0E-3, 100.0E-3, float),
-        'mask_propagation_border_length'    : (1.0E-3, 10.0E-3, float),
-        'lens_propagation_border_length'    : (0.0, 10.0E-3, float),
-        'focus_length'                      : (0.0, 10.0E-3, float)
-    }
-    for i in range(n):
-        kwargs = {}
-        for key, (min_value, max_value, value_type) in limits.items():
-            kwargs[key] = value_type(random.random()*(max_value - min_value) + min_value)
-        Base.AddModel(FourierSpaceD2NN(**kwargs))
-    Base.selection().print()
+    # Тренировочный модуль
+    _Trainer : DataBaseTrainer
+    @property
+    def trainer(self):
+        return self._Trainer
+    def _initialize_Trainer(self):
+        self._Trainer = DataBaseTrainer()
 
-    Base._clear_DataBase()
+    # Методы пользователя
+    def check_existence(self, parameters_dict_or_model:Union[Dict,torch.nn.Module]):
+        parameters = parameters_dict_or_model
+        if isinstance(parameters_dict_or_model, torch.nn.Module):
+            model = parameters_dict_or_model
+            parameters = self._pull_parameters_from_model(model)
+
+        PreviousSelectedIds = self._SelectedIds
+        self.selection(ModelParameters=parameters)
+        SelectedIds = self._SelectedIds
+        self._SelectedIds = PreviousSelectedIds
+
+        if not SelectedIds:
+            return False
+        return True
+    def add(self, model:torch.nn.Module):
+        parameters = self._pull_parameters_from_model(model)
+
+        if self.check_existence(parameters):
+            answer = input('\033[93m{}\033[0m'.format('Модель с теми же самыми параметрами уже существует, хотите заменить её? (Y/N): '))
+            if answer != 'Y':
+                return
+            PreviousSelectedIds = self._SelectedIds
+            self.selection(parameters)
+            self.selection.delete()
+            self._SelectedIds = PreviousSelectedIds
+
+        final_accuracy:float = 0.0
+        train_info = {}
+        file = pickle.dumps(model)
+        parameters['FinalAccuracy'] = final_accuracy
+        parameters['TrainInfo'] = json.dumps(train_info)
+        parameters['File'] = file
+
+        cursor = self._DataBaseConnection.cursor()
+        query = 'INSERT INTO TrainedModels (' + ', '.join(parameters.keys()) + ') Values (' + ', '.join(['?']*len(parameters.keys())) + ')'
+        cursor.execute(query, list(parameters.values()))
+        # self._DataBaseConnection.commit()
+
+
+
+class Test:
+    @staticmethod
+    def AddingModels():
+        from src.Belashov.Models.FourierSpaceD2NN import FourierSpaceD2NN
+        Base = DataBase(FourierSpaceD2NN())
+
+        import random
+        n = 20
+        limits = {
+            'masks_count': (2, 8, int),
+            'wave_length': (100.0E-9, 1000.0E-9, float),
+            'space_reflection': (1.0, 1.5, float),
+            'mask_reflection': (1.0, 1.5, float),
+            'plane_length': (1.0E-3, 10.0E-3, float),
+            'pixels_count': (10, 100, int),
+            'up_scaling': (1, 50, int),
+            'mask_interspacing': (5.0E-3, 100.0E-3, float),
+            'mask_propagation_border_length': (1.0E-3, 10.0E-3, float),
+            'lens_propagation_border_length': (0.0, 10.0E-3, float),
+            'focus_length': (0.0, 10.0E-3, float)
+        }
+        for i in range(n):
+            kwargs = {}
+            for key, (min_value, max_value, value_type) in limits.items():
+                kwargs[key] = value_type(random.random() * (max_value - min_value) + min_value)
+            Base.add(FourierSpaceD2NN(**kwargs))
+        Base.selection().print()
+
+        Base._clear_DataBase()
+    @staticmethod
+    def TrainingSingleModel():
+        from src.Belashov.Models.FourierSpaceD2NN import FourierSpaceD2NN
+        Base = DataBase(FourierSpaceD2NN())
+
+        WaveLength = 532.0E-9
+        PixelsCount = 20
+        UpScaling = 8
+        PlaneLength = PixelsCount * 30.0E-6
+        FocusLength = 100.0E-3
+        BorderLength = PlaneLength
+        DiffractionLength = 10.0E-3
+        Model = FourierSpaceD2NN(
+            masks_count=4,
+            wave_length=WaveLength,
+            plane_length=PlaneLength,
+            pixels_count=PixelsCount,
+            up_scaling=UpScaling,
+            mask_interspacing=DiffractionLength,
+            focus_length=FocusLength,
+            mask_propagation_border_length=1 * BorderLength,
+            lens_propagation_border_length=3 * BorderLength,
+            detectors_masks='Polar'
+        )
+        Model.DiffractionLengthAsParameter(False)
+        Model.DisableAmplification()
+        Base.add(Model)
+
+        import random
+        n = 7
+        limits = {
+            'wave_length': (100.0E-9, 1000.0E-9, float),
+            'mask_reflection': (1.2, 1.5, float),
+            'plane_length': (0.7E-3, 0.2E-3, float),
+            'mask_interspacing': (5.0E-3, 10.0E-3, float),
+            'focus_length': (1.0E-3, 10.0E-3, float)
+        }
+        for i in range(n):
+            kwargs = {}
+            for key, (min_value, max_value, value_type) in limits.items():
+                kwargs[key] = value_type(random.random() * (max_value - min_value) + min_value)
+            Base.add(FourierSpaceD2NN(**kwargs))
+        Base.selection().print()
+
+        Base.trainer.device = 'cuda'
+        Base.trainer.dataset = 'MNIST'
+        Base.trainer.epochs = 1
+        Base.trainer.batches = 64
+
+        Base.selection(Id=1)
+        Base.selection.print()
+        Base.selection.train()
+
+        Base._clear_DataBase()
 
 if __name__ == '__main__':
-    Test()
+    # Test.AddingModels()
+    Test.TrainingSingleModel()

@@ -66,6 +66,12 @@ class FourierSpaceD2NN(torch.nn.Module):
             if hasattr(module, 'FinalizeChanges'):
                 getattr(module, 'FinalizeChanges')()
 
+    def Heights(self):
+        heights = []
+        for MaskModule in self._HeightsMaskModuleList:
+            heights.append(MaskModule.GetPreparedHeights())
+        return heights
+
 
     _WaveLength : torch.Tensor
     @property
@@ -227,7 +233,7 @@ class FourierSpaceD2NN(torch.nn.Module):
         self._DiffractionLengthAsParameter = mode
 
 
-    def __init__(self, masks_count:int=5, wave_length:Union[float,Iterable,torch.Tensor]=600*nm, space_reflection:Union[float,Iterable,torch.Tensor]=1.0, mask_reflection: Union[float, Iterable, torch.Tensor] = 1.5, plane_length:float=1.0*mm, pixels_count:int=21, up_scaling:int=20, mask_interspacing:float=20.0*mm, mask_propagation_border_length:float=0.0, lens_propagation_border_length:float=0.0, smoothing_matrix:Union[None,Iterable,torch.Tensor]=None, focus_length:float=10*mm, detectors_masks:Union[str,Iterable,torch.Tensor]='Square'):
+    def __init__(self, masks_count:int=5, wave_length:Union[float,Iterable,torch.Tensor]=600*nm, space_reflection:Union[float,Iterable,torch.Tensor]=1.0, mask_reflection: Union[float, Iterable, torch.Tensor] = 1.5, plane_length:float=1.0*mm, pixels_count:int=20, up_scaling:int=4, mask_interspacing:float=20.0*mm, mask_propagation_border_length:float=0.0, lens_propagation_border_length:float=0.0, smoothing_matrix:Union[None,Iterable,torch.Tensor]=None, focus_length:float=10*mm, detectors_masks:Union[str,Iterable,torch.Tensor]='Polar'):
         """
         :param masks_count:                     Количество высотных масок в модели.
         :param wave_length:                     Длинна волны излучения (можно использовать набор длинн волн)
@@ -268,7 +274,7 @@ class FourierSpaceD2NN(torch.nn.Module):
 
         self._DetectorsEnable   = True
 
-        self._AmplificationEnable = True
+        self._AmplificationEnable = False
 
         self._DiffractionLengthAsParameter = False
 

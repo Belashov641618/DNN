@@ -1,6 +1,6 @@
 import torch
 import numpy
-from typing import Union, List, Tuple, Any
+from typing import Union, List, Tuple, Any, Dict
 import inspect
 from torch.utils.data import DataLoader
 from src.AdditionalUtilities.CycleTimePredictor import CycleTimePredictor
@@ -64,16 +64,40 @@ class DataBaseTrainer:
     _TrainLoader : DataLoader
     _TestLoader  : DataLoader
     def _reset_loaders(self):
-        self._TestLoader    = StringToDataSetRedirector(self._dataset, train=False, input_pixels=self._pixels)
-        self._TrainLoader   = StringToDataSetRedirector(self._dataset, train=True, input_pixels=self._pixels)
+        self._TestLoader    = DataLoader(StringToDataSetRedirector(self._dataset, train=False, input_pixels=self._pixels), batch_size=self._batches, shuffle=True, num_workers=0)
+        self._TrainLoader   = DataLoader(StringToDataSetRedirector(self._dataset, train=True, input_pixels=self._pixels), batch_size=self._batches, shuffle=True, num_workers=0)
 
-    _Optimizer : Any
+    _Optimizer       : Any
+    _OptimizerType   : Any
+    _OptimizerKwargs : Dict
     @property
-    def optimizer(self):
-        return self._Optimizer
-    @optimizer.setter
-    def optimizer(self, torch_optimizer:Any):
-        self._Optimizer = torch_optimizer
+    def optimizer_type(self):
+        if hasattr(self, '_OptimizerType'):
+            return self._OptimizerType
+        else:
+            return None
+    @optimizer_type.setter
+    def optimizer_type(self, torch_optimizer_type:Any):
+        self._OptimizerType = torch_optimizer_type
+        self._construct_optimizer()
+    @property
+    def optimizer_kwargs(self):
+        if hasattr(self, '_OptimizerKwargs'):
+            return self._OptimizerKwargs
+        else:
+            return None
+    @optimizer_kwargs.setter
+    def optimizer_kwargs(self, torch_optimizer_parameters:Dict):
+        self._OptimizerKwargs = torch_optimizer_parameters
+        self._construct_optimizer()
+    def optimizer(self, optimizer_type, **kwargs):
+        self.optimizer_type = optimizer_type
+        self.optimizer_kwargs = kwargs
+    def _construct_optimizer(self):
+        if not hasattr(self, '_OptimizerKwargs'):               self._OptimizerKwargs = {}
+        if not hasattr(self, '_OptimizerType'):                 self._OptimizerType = torch.optim.Adam
+        if not hasattr(self, '_Model') or self._Model is None:  self._DelayedFunctions.add(self._construct_optimizer)
+        else:                                                   self._Optimizer = self._OptimizerType(self._Model.parameters(), **self._OptimizerKwargs)
 
     _LossFunction : Any
     @property
@@ -109,13 +133,16 @@ class DataBaseTrainer:
     def _reset_accuracy(self):
         self._accuracy = None
 
-    def __init__(self, Model:Union[torch.nn.Module,torch.nn.Sequential,List,Tuple]=None, Dataset:str='MNIST', LossFunction:Any=None, Optimizer:Any=None):
-        self._Model = Model
-        self._dataset = Dataset
-        if LossFunction is None:    LossFunction = torch.nn.MSELoss()
-        self._LossFunction = LossFunction
-        if Optimizer is None:       Optimizer = torch.optim.Adam(self._Model.parameters(), lr=0.005)
-        self._Optimizer = Optimizer
+    def __init__(self, Model:Union[torch.nn.Module,torch.nn.Sequential,List,Tuple]=None, Dataset:str='MNIST', LossFunction:Any=None, OptimizerType:Any=None, OptimizerKwargs:Dict=None):
+        self._DelayedFunctions = DelayedFunctions()
+
+        self.model = Model
+        self.dataset = Dataset
+        if LossFunction is None:        LossFunction = torch.nn.CrossEntropyLoss()
+        self.loss = LossFunction
+        if OptimizerType is None:       OptimizerType = torch.optim.Adadelta
+        if OptimizerKwargs is None:     OptimizerKwargs = {}
+        self.optimizer(OptimizerType, **OptimizerKwargs)
 
     def _accuracy_test(self):
         if not hasattr(self, '_device') or self._device is None:
@@ -157,6 +184,8 @@ class DataBaseTrainer:
         else:
             labels = torch.eye(output.size(1), output.size(1), device=self._device, dtype=output.dtype, requires_grad=True)[labels]
             loss = self._LossFunction(output, labels)
+
+        torch.autograd.detect_anomaly()
 
         self._Optimizer.zero_grad()
         loss.backward()
@@ -212,7 +241,7 @@ class DataBaseTrainer:
             print('Точность сети на начало тренировки: ' + str(round(self.accuracy, 1)) + '%')
         for epoch in range(self.epochs):
             self._epoch(echo=echo)
-            if epoch:
+            if echo:
                 print('Точность сети после эпохи обучения №' + str(epoch+1) + ' - ' + str(round(self.accuracy, 1)) + '%')
 
     @property
@@ -243,3 +272,13 @@ class DataBaseTrainer:
                 return self._name(self._self._Optimizer)
 
         return NamesContainer(self)
+    @property
+    def info(self):
+        self._DelayedFunctions.launch()
+        return ' | '.join([
+            'DataSet: '         + self.name.dataset,
+            'LossFunction: '    + self.name.loss,
+            'Optimizer: '       + self.name.optimizer,
+            'Batches: '         + str(self.batches),
+            'Epochs: '          + str(self.epochs)
+        ])

@@ -7,6 +7,7 @@ from itertools import product
 import inspect
 from functools import partial
 from copy import deepcopy
+import os
 
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
@@ -20,7 +21,8 @@ from src.Belashov.Layers.DetectorsLayer import DetectorsLayer
 
 def StringToDataSetRedirector(data_set_name:str, train:bool=True, transformation:Any=None, input_pixels:int=None):
 
-    data_sets_root = 'data/'
+    path = os.path.abspath(__file__)
+    data_sets_root = path + '../../../../data/'
 
     data_sets_dict = {
         'MNIST' :           (torchvision.datasets.MNIST,        ['mnist', 'Mnist']),
@@ -284,6 +286,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
 
     batch_size:int = 1
     while True:
+        print(batch_size)
         try:
             Model(torch.rand([batch_size] + input_size).to(device))
             batch_size = int(batch_size*2)
@@ -292,6 +295,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
     delta:int = int(batch_size/2)
     batch_size += 1
     while delta != 0:
+        print(batch_size)
         try:
             for i in range(5):
                 output = Model(torch.rand([batch_size] + input_size).to(device))
@@ -301,6 +305,7 @@ def CalculateMaximumBatchSize(Model:torch.nn.Module, input_size:Union[Tuple,List
         except torch.cuda.OutOfMemoryError:
             batch_size -= delta
     while batch_size != 0:
+        print(batch_size)
         try:
             for i in range(10):
                 Model(torch.rand([batch_size] + input_size).to(device))

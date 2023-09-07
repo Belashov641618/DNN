@@ -144,11 +144,14 @@ class DetectorsLayer(AbstractLayer):
         super(DetectorsLayer, self).forward(field)
         results = torch.sum((torch.abs(field)**2).expand(10,-1,-1,-1,-1).movedim(0,2) * self._DetectorsMasksBuffer, dim=(1,3,4))
 
+        # Нормировка на полное поле
         # field_integral = torch.sum(torch.abs(field)**2, dim=(1, 2, 3))
         # results = results / field_integral.expand(10, -1).swapdims(0,1)
 
+        # Нормировка на максимальное значение
         results = results / (results.max(dim=1).values[:, None])
 
+        # Нормировка с помощью softmax
         # results = torch.softmax(results, dim=1)
 
         return results

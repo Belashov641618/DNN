@@ -10,8 +10,8 @@ class DelayedFunctions:
     def launch(self):
         if hasattr(self, '_delayed_functions'):
             self._delayed_functions.sort(key=lambda element: element[1])
-        for (function, priority, args, kwargs) in self._delayed_functions:
-            function(*args, **kwargs)
-        self._delayed_functions.clear()
+            for (function, priority, args, kwargs) in self._delayed_functions:
+                function(*args, **kwargs)
+            self._delayed_functions.clear()
     def __init__(self):
         self._delayed_functions = []

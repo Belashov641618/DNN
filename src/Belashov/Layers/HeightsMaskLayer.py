@@ -169,16 +169,16 @@ class HeightsMaskLayer(AbstractLayer):
 
     def GetOriginalHeights(self, to_cpu:bool=True):
         if to_cpu:
-            return deepcopy(self._heights()).requires_grad_(False).cpu()
-        return deepcopy(self._heights()).requires_grad_(False)
+            return self._heights().clone().detach().requires_grad_(False).cpu()
+        return self._heights().clone().detach().requires_grad_(False)
     def GetPreparedHeights(self, to_cpu:bool=True):
         if to_cpu:
-            return deepcopy(self._prepared_heights()).requires_grad_(False).cpu()
-        return deepcopy(self._prepared_heights()).requires_grad_(False)
+            return self._heights().clone().detach().requires_grad_(False).cpu()
+        return self._heights().clone().detach().requires_grad_(False)
     def GetPropagators(self, to_cpu:bool=True):
         if to_cpu:
-            return deepcopy(self._propagators()).requires_grad_(False).cpu()
-        return deepcopy(self._propagators()).requires_grad_(False)
+            return self._propagators().clone().detach().requires_grad_(False).cpu()
+        return self._propagators().clone().detach().requires_grad_(False)
 
 
     def __init__(self, wave_length:Union[float,Iterable,torch.Tensor]=600*nm, space_reflection:Union[float,Iterable,torch.Tensor]=1.0, mask_reflection:Union[float,Iterable,torch.Tensor]=1.5, pixels_count:int=50, up_scaling:int=20, smoothing_matrix:Union[None,Iterable,torch.Tensor]=None):
