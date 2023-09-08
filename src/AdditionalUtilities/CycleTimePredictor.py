@@ -9,6 +9,7 @@ class CycleTimePredictor:
     TotalIterations : int
     CurrentIteration : int
     StartTime : float
+    StringLength : int
 
     FullTimePredictions : numpy.ndarray
     FullTime : float
@@ -22,6 +23,7 @@ class CycleTimePredictor:
         self.TotalIterations = len(IteratingList)
         self.CurrentIteration = 0
         self.StartTime = timer()
+        self.StringLength = 0
         self.FullTimePredictions = numpy.zeros(len(IteratingList))
     def __iter__(self):
         return self
@@ -37,8 +39,10 @@ class CycleTimePredictor:
         string += ' | Прошло времени: ' + Format.Time(TimePassed) + ' из ' + Format.Time(TimeTotal) + ', Осталось: ' + Format.Time(TimeLeft)
         for function in self.DataFunctions:
             string += ' | ' + function()
+        StringLength = len(string)
         string = '\033[35m{}\033[0m'.format(string)
-        sys.stdout.write(f"\r{string + '                                                                                     '}")
+        sys.stdout.write(f"\r{string + ' '*(self.StringLength - StringLength)}")
+        self.StringLength = StringLength
 
         if self.CurrentIteration-1 == self.TotalIterations:
             self.FullTime = TimePassed
