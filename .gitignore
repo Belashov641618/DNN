@@ -140,5 +140,6 @@ dmypy.json
 /src/FileImprovedD2NN.data
 /Figures/
 /TrainedModels/
-/src/ModelsExaminer/ModelsData/TrainedModels/*
-/src/ModelsExaminer/ModelsData/TrainedModels/
+/src/examiner/ModelsData/databases/*
+/src/examiner/ModelsData/databases/
+/src/modules/models/autosave/
