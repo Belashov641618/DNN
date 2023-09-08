@@ -10,7 +10,7 @@ import torch.nn
 
 from src.utilities.Formaters import Format
 
-from src.examiner.ModelsData.parameters.generator import GenerateModelParametersDict
+from src.examiner.manager.parameters.generator import GenerateModelParametersDict
 from src.examiner.utilities.DataBaseTrainer import DataBaseTrainer
 
 from src.utilities.UniversalTestsAndOther import PlotTroughModelPropagationSamples

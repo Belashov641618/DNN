@@ -2,7 +2,7 @@ import sys
 from typing import Union
 import torch
 
-from src.examiner.ModelsData.DataBaseManager import DataBase
+from src.examiner.manager.DataBaseManager import DataBase
 
 from PyQt6.QtWidgets import QApplication
 from src.examiner.qt.Additional.MainWindow import MainWindow
