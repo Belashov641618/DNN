@@ -1,16 +1,14 @@
 import torch
-from copy import deepcopy
-from typing import Union, List, Iterable, Any
+from typing import Union, Iterable
 import pickle
 
-from src.utilities.DecimalPrefixes import cm, mm, um, nm
+from src.utilities.DecimalPrefixes import mm, nm
 from src.utilities.Formaters import Format
 
-from src.modules.layers.FourierPropagationLayer import FourierPropagationLayer
-from src.modules.layers.LensLayer import LensLayer
-from src.modules.layers.HeightsMaskLayer import HeightsMaskLayer
-from src.modules.layers.DetectorsLayer import DetectorsLayer
-from src.modules.layers.AmplificationLayer import AmplificationLayer
+from modules.layers.old.FourierPropagationLayer import FourierPropagationLayer
+from modules.layers.old.HeightsMaskLayer import HeightsMaskLayer
+from modules.layers.old.DetectorsLayer import DetectorsLayer
+from modules.layers.old.AmplificationLayer import AmplificationLayer
 
 
 class RealSpaceD2NN(torch.nn.Module):

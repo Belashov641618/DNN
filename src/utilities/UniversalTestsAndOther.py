@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import DataLoader as TorchDataLoader
 import torchvision
-import numpy
 from typing import Union, Iterable, List, Any, Tuple, Dict
 from itertools import product
 import inspect
@@ -14,10 +13,10 @@ from matplotlib.axes import Axes
 
 from src.utilities.Colorize import Colorizer
 from src.utilities.Formaters import Format
-from src.utilities.DecimalPrefixes import nm, um, mm, cm
+from src.utilities.DecimalPrefixes import cm
 from src.utilities.TitledFigure import Titles
 
-from src.modules.layers.DetectorsLayer import DetectorsLayer
+from modules.layers.old.DetectorsLayer import DetectorsLayer
 
 def StringToDataSetRedirector(data_set_name:str, train:bool=True, transformation:Any=None, input_pixels:int=None):
 

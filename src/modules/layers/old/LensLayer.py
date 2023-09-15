@@ -3,7 +3,7 @@ from typing import Union, Iterable
 from copy import deepcopy
 from src.utilities.DecimalPrefixes import mm, um, nm, cm
 
-from src.modules.layers.AbstractLayer import AbstractLayer
+from modules.layers.old.AbstractLayer import AbstractLayer
 
 
 class LensLayer(AbstractLayer):
@@ -92,13 +92,11 @@ class LensLayer(AbstractLayer):
 
 
 def auto_test(fourier_propagation_test=True, kirchhoff_propagation_test=True):
-    from itertools import product
     import matplotlib.pyplot as plt
-    from matplotlib.axes import Axes
     from src.utilities.Formaters import Format
     from src.utilities.TitledFigure import Titles
-    from src.modules.layers.FourierPropagationLayer import FourierPropagationLayer
-    from src.modules.layers.KirchhoffPropagationLayer import KirchhoffPropagationLayer
+    from modules.layers.old.FourierPropagationLayer import FourierPropagationLayer
+    from modules.layers.old.KirchhoffPropagationLayer import KirchhoffPropagationLayer
     from src.utilities.UniversalTestsAndOther import DrawLensSystemImages
 
 

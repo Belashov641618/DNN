@@ -1,9 +1,9 @@
 import torch
 from typing import Union, Iterable
 from copy import deepcopy
-from src.utilities.DecimalPrefixes import mm, um, nm
+from src.utilities.DecimalPrefixes import nm
 
-from src.modules.layers.AbstractLayer import AbstractLayer
+from modules.layers.old.AbstractLayer import AbstractLayer
 
 
 class HeightsMaskLayer(AbstractLayer):
