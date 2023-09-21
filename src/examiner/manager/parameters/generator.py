@@ -74,5 +74,5 @@ def GenerateModelParametersDict(Model:torch.nn.Module):
     return ModelParametersDict
 
 if __name__ == '__main__':
-    from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
+    from modules.models.old.FourierSpaceD2NN import FourierSpaceD2NN
     GenerateModelParametersDict(FourierSpaceD2NN())

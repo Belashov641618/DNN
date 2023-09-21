@@ -336,7 +336,7 @@ class DataBase:
 class Test:
     @staticmethod
     def AddingModels():
-        from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
+        from modules.models.old.FourierSpaceD2NN import FourierSpaceD2NN
         Base = DataBase(FourierSpaceD2NN())
 
         import random
@@ -364,7 +364,7 @@ class Test:
         Base._clear_DataBase()
     @staticmethod
     def TrainingSingleModel():
-        from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
+        from modules.models.old.FourierSpaceD2NN import FourierSpaceD2NN
         Base = DataBase(FourierSpaceD2NN())
 
         WaveLength = 532.0E-9
