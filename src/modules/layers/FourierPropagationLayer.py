@@ -20,7 +20,7 @@ class FourierPropagationLayer(KirchhoffPropagationLayer):
         space_reflection = self._reflection.expand(1, 1, -1).movedim(2, 0).to(device)
         Kz = ((2 * torch.pi) * torch.sqrt(0j + (1.0 / (wave_length * space_reflection)) ** 2 - fxx ** 2 - fyy ** 2)).to(dtype=self._accuracy.tensor_complex)
 
-        self.register_buffer('_PropagationBuffer', torch.exp(1.0j * Kz * self._distance))
+        self.register_buffer('_propagation_buffer', torch.exp(1.0j * Kz * self._distance))
 
     _border_pixels : int
     @property
@@ -68,15 +68,25 @@ class FourierPropagationLayer(KirchhoffPropagationLayer):
                         plane_length:float=1.0*mm,
                         pixels:int=20,
                         up_scaling:int=8,
-                        distance:float=20.0*mm):
-        super(FourierPropagationLayer, self).__init__(wavelength=wavelength, reflection=reflection, plane_length=plane_length, pixels=pixels, up_scaling=up_scaling, distance=distance)
-        
+                        distance:float=20.0*mm,
+                        border:float=0.0*mm):
+        AbstractPropagationLayer.__init__(self)
+        self.wavelength = wavelength
+        self.reflection = reflection
+        self.plane_length = plane_length
+        self.pixels = pixels
+        self.up_scaling = up_scaling
+        self.distance = distance
+        self.border = border
+        self._recalc_border_pixels()
+        self._recalc_propagation_buffer()
+
     def forward(self, field:torch.Tensor):
         AbstractPropagationLayer.forward(self, field)
 
         field = torch.nn.functional.pad(field, (+self._border_pixels, +self._border_pixels, +self._border_pixels, +self._border_pixels))
         field = torch.fft.fftshift(torch.fft.fft2(field))
-        field = torch.fft.ifft2(torch.fft.ifftshift(field * self._PropagationBuffer))
+        field = torch.fft.ifft2(torch.fft.ifftshift(field * self._propagation_buffer))
         field = torch.nn.functional.pad(field, (-self._border_pixels, -self._border_pixels, -self._border_pixels, -self._border_pixels))
 
         return field

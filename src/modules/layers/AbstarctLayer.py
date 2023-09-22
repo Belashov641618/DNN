@@ -26,6 +26,8 @@ class AbstractLayer(torch.nn.Module):
             _self : AbstractLayer
             def __init__(self, _self:AbstractLayer):
                 self._self = _self
+            def bits(self, count:int):
+                self._self._accuracy.set(bits=count)
             def bits16(self):
                 self._self._accuracy.set(bits=16)
             def bits32(self):

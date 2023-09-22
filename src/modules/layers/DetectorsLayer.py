@@ -5,7 +5,7 @@ import numpy
 from copy import deepcopy
 from typing import Union, Iterable, Tuple, List, Dict
 
-from .AbstarctLayer import AbstractLayer
+from src.modules.layers.AbstarctLayer import AbstractLayer
 
 manual_type:int = 0
 square_type:int = 1
@@ -67,7 +67,10 @@ class DetectorsLayer(AbstractLayer):
                                 n += 1
                             if n != self._self._detectors:
                                 raise Exception('Недостаточно элементов в списке masks!')
-                        self._self.register_buffer('_masks', new_masks)
+                        device = torch.device('cpu')
+                        if hasattr(self._self, '_masks'):
+                            device = self._self._masks.device
+                        self._self.register_buffer('_masks', new_masks.to(device).to(self._self._accuracy.tensor_float))
                     def square(self, borders:float=0.05, space:float=0.2):
                         self._self._masks_type = (square_type, [], {
                             'borders':borders,
@@ -88,15 +91,15 @@ class DetectorsLayer(AbstractLayer):
                         if rest: max_cols += 1
 
                         length = 1.0 - 2.0*borders
-                        width = length / (max_cols * (1.0 + space))
-                        height = length / (rows * (1.0 + space))
+                        width = length / ((max_cols-1)*(space+1.0)+1)
+                        height = length / ((rows-1)*(space+1.0)+1)
                         y_pad = height*space
                         x_pad = width*space
 
                         central_points = []
                         for ny, amount in enumerate(amounts):
                             y = borders + height/2 + (y_pad+height)*ny
-                            pad = (length - amount*width + (amount-1)*x_pad) / 2
+                            pad = (length - amount*width - (amount-1)*x_pad) / 2
                             for nx in range(amount):
                                 x = borders + pad + width/2 + (x_pad+width)*nx
                                 central_points.append((x, y))
@@ -104,9 +107,12 @@ class DetectorsLayer(AbstractLayer):
                         border_pixels = [(int(x1*pixels), int(y1*pixels), int(x2*pixels), int(y2*pixels)) for (x1, y1, x2, y2) in border_points]
 
                         for i, (nx1, ny1, nx2, ny2) in enumerate(border_pixels):
-                            new_masks[i][nx1:nx2][ny1:ny2] = torch.ones(nx2-nx1, ny2-ny1)
+                            new_masks[i][nx1:nx2, ny1:ny2] = torch.ones(nx2-nx1, ny2-ny1)
 
-                        self._self.register_buffer('_masks', new_masks)
+                        device = torch.device('cpu')
+                        if hasattr(self._self, '_masks'):
+                            device = self._self._masks.device
+                        self._self.register_buffer('_masks', new_masks.to(device).to(self._self._accuracy.tensor_float))
                     def polar(self, borders:float=0.05, space:float=0.2, power:float=0.5):
                         self._self._masks_type = (polar_type, [], {
                             'borders':borders,
@@ -128,25 +134,28 @@ class DetectorsLayer(AbstractLayer):
                         if rest: max_cols += 1
 
                         length = 1.0 - 2.0*borders
-                        width = length / (max_cols * (1.0 + space))
-                        height = length / (rows * (1.0 + space))
+                        width = length / ((max_cols-1)*(space+1.0)+1)
+                        height = length / ((rows-1)*(space+1.0)+1)
                         y_pad = height*space
                         x_pad = width*space
 
                         central_points = []
                         for ny, amount in enumerate(amounts):
                             y = borders + height/2 + (y_pad+height)*ny
-                            pad = (length - amount*width + (amount-1)*x_pad) / 2
+                            pad = (length - amount*width - (amount-1)*x_pad) / 2
                             for nx in range(amount):
                                 x = borders + pad + width/2 + (x_pad+width)*nx
                                 central_points.append((x, y))
 
-                        x_mesh, y_mesh = torch.meshgrid(torch.linspace(-1, +1, pixels), torch.linspace(-1, +1, pixels))
+                        x_mesh, y_mesh = torch.meshgrid(torch.linspace(0, +1, pixels), torch.linspace(0, +1, pixels), indexing="ij")
                         for i, (cx, cy) in enumerate(central_points):
                             radius = torch.sqrt(torch.square(x_mesh - cx) + torch.square(y_mesh - cy))
                             new_masks[i] = 1.0 / (1.0 + torch.pow(radius, power))
 
-                        self._self.register_buffer('_masks', new_masks)
+                        device = torch.device('cpu')
+                        if hasattr(self._self, '_masks'):
+                            device = self._self._masks.device
+                        self._self.register_buffer('_masks', new_masks.to(device).to(self._self._accuracy.tensor_float))
                 return Setter(self._self)
         return Selector(self)
     def _recalc_masks(self):
@@ -228,7 +237,7 @@ class DetectorsLayer(AbstractLayer):
     def forward(self, field:torch.Tensor):
         super(DetectorsLayer, self).forward(field)
 
-        results = torch.sum((torch.abs(field)**2).expand(10,-1,-1,-1,-1).movedim(0,2) * self._masks, dim=(1,3,4))
+        results = torch.sum((torch.abs(field)**2).expand(self._detectors,-1,-1,-1,-1).movedim(0,2) * self._masks, dim=(1,3,4))
 
         if self._normalization == integral_normalization:
             field_integral = torch.sum(torch.abs(field)**2, dim=(1, 2, 3))
@@ -239,3 +248,39 @@ class DetectorsLayer(AbstractLayer):
             results = torch.softmax(results, dim=1)
 
         return results
+
+class Test:
+    @staticmethod
+    def MaskGeneration():
+        from belashovplot import TiledPlot
+        detectors_list = [2, 7, 10, 32]
+
+        Layer = DetectorsLayer()
+
+        plot = TiledPlot(8.27*2, 11.69*2)
+        plot.title("Тест генерации различных масок")
+        plot.pad.graph.vertical(0.3)
+        plot.pad.graph.horizontal(0.3)
+
+        for i, detectors in enumerate(detectors_list):
+            Layer.detectors = detectors
+
+            Layer.masks.set.square()
+            axes = plot.axes.add(i, 0)
+            axes.imshow(torch.swapdims(torch.sum(Layer.masks.get(), dim=0), 0,1), origin="lower")
+            plot.graph.description("Сумма масок " + str(detectors) + " квадратных детекторов")
+
+            Layer.masks.set.polar()
+            axes = plot.axes.add(i, 1)
+            axes.imshow(torch.swapdims(torch.sum(Layer.masks.get(), dim=0), 0,1), origin="lower")
+            plot.graph.description("Сумма масок " + str(detectors) + " полярных детекторов")
+
+            plot.description.column.top(str(detectors) + " детекторов", i)
+
+        plot.description.row.left("Квадратные детекторы", 0)
+        plot.description.row.left("Полярные детекторы", 1)
+
+        plot.show()
+
+if __name__ == "__main__":
+    Test.MaskGeneration()

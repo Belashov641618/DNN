@@ -27,13 +27,21 @@ class HeightMaskLayer(AbstractMaskLayer):
                 return Heights
         return Selector(self)
 
+    _propagation_buffer : torch.Tensor
+    def _recalc_propagation_buffer(self):
+        device = torch.device('cpu')
+        if hasattr(self, '_propagation_buffer'):
+            device = self._propagation_buffer.device
+
+        self.register_buffer('_propagation_buffer', (2.0j*torch.pi*(self._mask_reflection/(self._mask_reflection-self._space_reflection))).to(device).to(self._accuracy.tensor_complex))
+
     def _scale(self):
         if self._smooth_matrix is None:
             return super(HeightMaskLayer, self)._scale()
         else:
             return torch.nn.functional.conv2d(super(HeightMaskLayer, self)._scale().expand(1, 1, -1, -1), self._smooth_matrix.expand(1, 1, -1, -1), padding='same').squeeze() / torch.sum(self._smooth_matrix)
     def _mask(self):
-        return torch.exp(2.0j*torch.pi*(self._mask_reflection/(self._mask_reflection-self._space_reflection))*self._scale())
+        return torch.exp(self._propagation_buffer*self._scale())
 
     _smooth_matrix : Union[torch.Tensor, None]
     @property
@@ -51,12 +59,14 @@ class HeightMaskLayer(AbstractMaskLayer):
                 if isinstance(matrix, torch.Tensor):
                     device = 'cpu'
                     if hasattr(self._self, '_parameters'):
-                        device = self._self._parameters.device
+                        device = self._self._parameters_.device
                     matrix = matrix.to(device)
                     matrix = matrix.to(self._self._accuracy.tensor_float)
                     self._self.register_buffer('_smooth_matrix', matrix)
                 else:
                     self._self._smooth_matrix = None
+            def disable(self):
+                self._self._smooth_matrix = None
         return Selector(self)
 
     _max_height : float
@@ -94,6 +104,7 @@ class HeightMaskLayer(AbstractMaskLayer):
             else:
                 raise ValueError("\033[31m\033[1m{}".format(self._get_name() + ': space_reflection size must be one or equal wave_length size!'))
         self._delayed.add(self._recalc_max_height)
+        self._delayed.add(self._recalc_propagation_buffer)
 
     _mask_reflection : torch.Tensor
     @property
@@ -108,6 +119,7 @@ class HeightMaskLayer(AbstractMaskLayer):
             else:
                 raise ValueError("\033[31m\033[1m{}".format(self._get_name() + ': space_reflection size must be one or equal wave_length size!'))
         self._delayed.add(self._recalc_max_height)
+        self._delayed.add(self._recalc_propagation_buffer)
 
     def __init__(self,  pixels:int=20,
                         up_scaling:int=8,
@@ -119,3 +131,7 @@ class HeightMaskLayer(AbstractMaskLayer):
         self.space_reflection = space_reflection
         self.mask_reflection = mask_reflection
         self._recalc_max_height()
+        self._recalc_propagation_buffer()
+
+        self.smooth_matrix.disable()
+        self.normalization.sigmoid()

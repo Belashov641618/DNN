@@ -8,8 +8,8 @@ class Accuracy:
 
     def __init__(self):
         self._bits = 32
-        self._tensor_float = torch.float32
-        self._tensor_complex = torch.complex64
+        self.tensor_float = torch.float32
+        self.tensor_complex = torch.complex64
 
     def set(self, bits:int):
         if bits == 16:
