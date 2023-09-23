@@ -1,5 +1,4 @@
 import torch
-
 from typing import Union, List
 from copy import deepcopy
 
@@ -335,17 +334,14 @@ class RealSpaceD2NN(AbstractModel):
         self.detectors(detectors)
         self.layers(layers)
 
-    def forward(self, field:torch.Tensor, record_history:bool=False):
+    def forward(self, field:torch.Tensor, record_history:bool=False, history:List=None, length:float=0):
         super(RealSpaceD2NN, self).forward(field)
+
+        if record_history and history is None:
+            history = [("Начальная амплитуда", torch.abs(field.clone().detach().cpu()))]
 
         if self._amplification:
             field = self._AmplificationModule(field)
-
-        history = []
-        length = 0
-
-        if record_history:
-            history.append(("Начальная амплитуда", torch.abs(field.clone().detach().cpu())))
 
         for i, _MaskLayer in enumerate(self._HeightMasksModuleList):
             field = self._PropagationModule(field)
@@ -365,79 +361,8 @@ class RealSpaceD2NN(AbstractModel):
             return labels, history
         return labels
 
-class Test:
-    @staticmethod
-    def PixelEmission():
-        from belashovplot import TiledPlot
-        Model = RealSpaceD2NN()
-
-        pixels = Model.pixels.get()
-        up_scaling = Model.up_scaling.get()
-        total = pixels * up_scaling
-        length = Model.plane_length.get()
-        begin   = int(total/2 - up_scaling/2)
-        end     = begin + up_scaling
-
-        with torch.no_grad():
-            field = torch.zeros(1, 1, total, total)
-            field[0][0][begin:end, begin:end] = torch.ones(up_scaling, up_scaling)
-            labels, history = Model.forward(field, record_history=True)
-
-        plot = TiledPlot(20., 10.)
-        plot.title("Тест распространения")
-        plot.description.top("Распространения излучения от единственного пикселя вдоль нейронной сети")
-
-        for i, (description, field) in enumerate(history):
-            axes = plot.axes.add(i, 0)
-            unit, mult = Format.Engineering_Separated(length/2, 'm')
-            axes.imshow(field.squeeze(), extent=[-mult*length/2, +mult*length/2, -mult*length/2, +mult*length/2])
-            plot.graph.label.x("x, " + unit)
-            plot.graph.label.y("y, " + unit)
-            plot.graph.description(description)
-
-        plot.show()
-
-    @staticmethod
-    def PixelEmissionWithParameterVariation(parameter:str="space", values=(10.0*mm, 20.0*mm, 30.0*mm), unit:str='m'):
-        from belashovplot import TiledPlot
-        Model = RealSpaceD2NN()
-        device = ('cuda' if torch.cuda.is_available() else 'cpu')
-        Model.to(device)
-
-        pixels = Model.pixels.get()
-        up_scaling = Model.up_scaling.get()
-        total = pixels * up_scaling
-        length = Model.plane_length.get()
-        begin   = int(total/2 - up_scaling/2)
-        end     = begin + up_scaling
-
-        plot = TiledPlot(20., 10.)
-        plot.title("Тест распространения")
-        plot.description.top("Распространения излучения от единственного пикселя вдоль нейронной сети")
-        plot.pad.graph.vertical(0.2)
-        plot.pad.graph.horizontal(0.2)
-
-        with torch.no_grad():
-            field0 = torch.zeros(1, 1, total, total)
-            field0[0][0][begin:end, begin:end] = torch.ones(up_scaling, up_scaling)
-            field0 = field0.to(device)
-
-            for j, value in enumerate(values):
-                getattr(Model, parameter)(value)
-                labels, history = Model.forward(field0.clone().detach(), record_history=True)
-                for i, (description, field) in enumerate(history):
-                    axes = plot.axes.add(i, j)
-                    unit, mult = Format.Engineering_Separated(length/2, 'm')
-                    axes.imshow(field.squeeze(), extent=[-mult*length/2, +mult*length/2, -mult*length/2, +mult*length/2])
-                    plot.graph.label.x("x, " + unit)
-                    plot.graph.label.y("y, " + unit)
-                    plot.graph.description(description)
-                plot.description.row.left(parameter + " : " + Format.Engineering(value, unit, 1), j)
-
-        plot.show()
-
-
 
 if __name__ == "__main__":
-    # Test.PixelEmission()
-    Test.PixelEmissionWithParameterVariation()
+    from Test import Test
+    Test.emission.pixel(RealSpaceD2NN())
+    Test.emission.pixel.variation.parameter(RealSpaceD2NN())
