@@ -19,6 +19,10 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
     _LensModule             : LensLayer
     _LensPropagationModule  : FourierPropagationLayer
 
+    def finalize(self):
+        super(FourierSpaceD2NN, self).finalize()
+        self._LensModule.delayed.finalize()
+        self._LensPropagationModule.delayed.finalize()
 
     # Начало описания параметров
     _focus : float
@@ -167,7 +171,10 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
         self._LensModule = LensLayer()
         self._LensPropagationModule = FourierPropagationLayer()
 
+        self.detectors_type.polar()
         self.amplification.disable()
+        self.normalization.maximum()
+        self.parameters_normalization.sinus()
 
         self.wavelength(wavelength)
         self.space_reflection(space_reflection)
@@ -235,4 +242,6 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
 if __name__ == '__main__':
     from Test import Test
     Test.emission.pixel(FourierSpaceD2NN())
-    Test.emission.pixel.variation.parameter(FourierSpaceD2NN())
+    Test.emission.MNIST(FourierSpaceD2NN())
+    Test.emission.variate.pixel(FourierSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')
+    Test.emission.variate.MNIST(FourierSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')

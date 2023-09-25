@@ -3,6 +3,10 @@ import torch
 from src.modules.layers.AbstarctLayer import AbstractLayer
 
 class AbstractModel(AbstractLayer):
+
+    def finalize(self):
+        return
+
     def __init__(self):
         super(AbstractModel, self).__init__()
 
