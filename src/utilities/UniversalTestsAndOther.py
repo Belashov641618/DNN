@@ -48,12 +48,14 @@ def StringToDataSetRedirector(data_set_name:str, train:bool=True, transformation
 
 
 def GenerateSingleUnscaledSampleMNIST(only_image=False):
+    path = os.path.abspath(__file__)
+    data_sets_root = path + '../../../../data/'
     transformation = torchvision.transforms.Compose([
         torchvision.transforms.ToTensor(),
         torchvision.transforms.RandomRotation((-90, -90)),
         torchvision.transforms.ConvertImageDtype(dtype=torch.complex64)
     ])
-    dataset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transformation)
+    dataset = torchvision.datasets.MNIST(root=data_sets_root, train=False, download=True, transform=transformation)
     loader = TorchDataLoader(dataset, batch_size=1, shuffle=True, num_workers=0)
     image, labels = next(iter(loader))
     if only_image:

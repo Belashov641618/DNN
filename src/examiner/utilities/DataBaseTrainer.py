@@ -9,6 +9,8 @@ from src.utilities.Formaters import Format
 from src.utilities.UniversalTestsAndOther import CalculateMaximumBatchSize, StringToDataSetRedirector
 from src.utilities.DelayedFunctions import DelayedFunctions
 
+from src.modules.models.AbstractModel import AbstractModel
+
 class DataBaseTrainer:
 
     _DelayedFunctions : DelayedFunctions
@@ -57,9 +59,10 @@ class DataBaseTrainer:
             self._Model = torch.nn.Sequential(*network)
         else:
             self._Model = network
-        if hasattr(network, 'PixelsCount') and hasattr(network, 'UpScaling'):
-            self.pixels = int(getattr(network, 'PixelsCount') * getattr(network, 'UpScaling'))
+        if hasattr(network, '_pixels') and hasattr(network, '_up_scaling'):
+            self.pixels = int(getattr(network, '_pixels') * getattr(network, '_up_scaling'))
         self._DelayedFunctions.add(self._reset_accuracy, 0.)
+        self._DelayedFunctions.add(self._construct_optimizer)
 
     _TrainLoader : DataLoader
     _TestLoader  : DataLoader
@@ -93,11 +96,19 @@ class DataBaseTrainer:
     def optimizer(self, optimizer_type, **kwargs):
         self.optimizer_type = optimizer_type
         self.optimizer_kwargs = kwargs
+        self._construct_optimizer()
     def _construct_optimizer(self):
-        if not hasattr(self, '_OptimizerKwargs'):               self._OptimizerKwargs = {}
-        if not hasattr(self, '_OptimizerType'):                 self._OptimizerType = torch.optim.Adam
-        if not hasattr(self, '_Model') or self._Model is None:  self._DelayedFunctions.add(self._construct_optimizer)
-        else:                                                   self._Optimizer = self._OptimizerType(self._Model.parameters(), **self._OptimizerKwargs)
+        if isinstance(self._Model, AbstractModel):
+            self._Model.finalize()
+            self._Model.delayed.finalize()
+        if not hasattr(self, '_OptimizerKwargs'):
+            self._OptimizerKwargs = {}
+        if not hasattr(self, '_OptimizerType'):
+            self._OptimizerType = torch.optim.Adam
+        if not hasattr(self, '_Model') or self._Model is None:
+            self._DelayedFunctions.add(self._construct_optimizer)
+        else:
+            self._Optimizer = self._OptimizerType(self._Model.parameters(), **self._OptimizerKwargs)
 
     _LossFunction : Any
     @property
@@ -128,13 +139,17 @@ class DataBaseTrainer:
     _accuracy : Union[float, None]
     @property
     def accuracy(self):
-        if self._accuracy is None: self._accuracy_test()
+        if not hasattr(self, '_accuracy') or self._accuracy is None: self._accuracy_test()
         return self._accuracy
     def _reset_accuracy(self):
         self._accuracy = None
 
     def __init__(self, Model:Union[torch.nn.Module,torch.nn.Sequential,List,Tuple]=None, Dataset:str='MNIST', LossFunction:Any=None, OptimizerType:Any=None, OptimizerKwargs:Dict=None):
         self._DelayedFunctions = DelayedFunctions()
+
+        self.batches = 64
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.epochs = 1
 
         self.model = Model
         self.dataset = Dataset
@@ -181,17 +196,19 @@ class DataBaseTrainer:
         output = self._Model(images)
         if isinstance(self._LossFunction, torch.nn.CrossEntropyLoss):
             loss = self._LossFunction(output, labels)
+
+            self._Optimizer.zero_grad()
+            loss.backward()
+            self._Optimizer.step()
         else:
             labels = torch.eye(output.size(1), output.size(1), device=self._device, dtype=output.dtype, requires_grad=True)[labels]
             loss = self._LossFunction(output, labels)
 
-        torch.autograd.detect_anomaly()
+            self._Optimizer.zero_grad()
+            loss.backward()
+            self._Optimizer.step()
 
-        self._Optimizer.zero_grad()
-        loss.backward()
-        self._Optimizer.step()
-
-        return loss
+        return loss.item()
     def _epoch(self, echo:bool=True):
         loss_buffer_first_iter = True
         loss_buffer_size = 20
@@ -199,28 +216,34 @@ class DataBaseTrainer:
         loss_buffer_index = 0
         loss_average = 0
         loss_string_function = lambda: 'Средний по ' + str(loss_buffer_size) + ' тестам лосс: ' + Format.Scientific(loss_average) + '± ' + Format.Scientific(numpy.std(loss_buffer)/numpy.sqrt(loss_buffer_size-1))
-
         CycleStringFunctions = [loss_string_function]
 
         gradient_string_function = lambda: 'Средний модуль градиента: ' + Format.Scientific((torch.mean(torch.abs(torch.cat([param.grad.view(-1) for param in self._Model.parameters() if param.grad is not None]))).item() if len([p.grad.view(-1) for p in self._Model.parameters() if p.grad is not None]) > 0 else 0.0),'')
         CycleStringFunctions.append(gradient_string_function)
 
-        if hasattr(self._Model, '_DiffractionLengthAsParameter') and hasattr(self._Model, 'DiffractionLength'):
-            if getattr(self._Model, '_DiffractionLengthAsParameter'):
-                diffraction_length_function = lambda: 'Расстояние между масками: ' + Format.Engineering(getattr(self._Model, 'DiffractionLength') ,'m')
-                CycleStringFunctions.append(diffraction_length_function)
+        # parameters1 = [param.clone().detach() for param in self._Model.parameters()]
+        # parameters2 = [param.clone().detach() for param in self._Model.parameters()]
+        # parameters_deviation_string_function1 = lambda: 'Среднее изменение параметров: ' + Format.Scientific(sum(torch.mean(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)) / len(parameters2), '', 6)
+        # CycleStringFunctions.append(parameters_deviation_string_function1)
+        # parameters_deviation_string_function2 = lambda: 'Максимальное изменение параметров: ' + Format.Scientific(max(torch.max(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)), '', 6)
+        # CycleStringFunctions.append(parameters_deviation_string_function2)
 
         self._Model.train()
-        for images, labels in (self._TrainLoader if not echo else CycleTimePredictor(self._TrainLoader, CycleStringFunctions)):
-            loss = self._epoch_step(images, labels)
-            if loss_buffer_first_iter:
-                loss_buffer.fill(loss.item())
-                loss_buffer_first_iter = False
-            else:
-                loss_buffer[loss_buffer_index] = loss.item()
-                loss_buffer_index = (loss_buffer_index+1)%loss_buffer_size
-            loss_average = numpy.mean(loss_buffer)
+        with torch.autograd.set_grad_enabled(True):
+            for images, labels in (self._TrainLoader if not echo else CycleTimePredictor(self._TrainLoader, CycleStringFunctions)):
+                loss = self._epoch_step(images, labels)
+                if loss_buffer_first_iter:
+                    loss_buffer.fill(loss)
+                    loss_buffer_first_iter = False
+                else:
+                    loss_buffer[loss_buffer_index] = loss
+                    loss_buffer_index = (loss_buffer_index+1)%loss_buffer_size
+                loss_average = numpy.mean(loss_buffer)
+                # parameters1 = [param.clone().detach() for param in parameters2]
+                # parameters2 = [param.clone().detach() for param in self._Model.parameters()]
+
         self._Model.eval()
+        self._reset_accuracy()
 
     def train(self, epochs:int=None, echo:bool=True):
         self._accuracy = None
@@ -282,3 +305,19 @@ class DataBaseTrainer:
             'Batches: '         + str(self.batches),
             'Epochs: '          + str(self.epochs)
         ])
+
+
+if __name__ == '__main__':
+    from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
+    from src.modules.models.RealSpaceD2NN import RealSpaceD2NN
+    from src.utilities.DecimalPrefixes import nm, um, cm, mm
+
+    Model = FourierSpaceD2NN(layers=4 ,pixels=100, up_scaling=3, plane_length=5.0*mm, border=5.0*mm, focus=10*mm, focus_border=15*mm, space=5.0*mm)
+    Trainer = DataBaseTrainer(Model)
+    Trainer.batches = 32
+    Trainer.epochs = 5
+    Trainer.train()
+
+    from src.modules.models.Test import Test
+    while True:
+        Test.emission.MNIST(Model)

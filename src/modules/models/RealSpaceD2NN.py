@@ -5,7 +5,7 @@ from copy import deepcopy
 from utilities.DecimalPrefixes import nm, um, mm, cm
 from utilities.Formaters import Format
 
-from AbstractModel import AbstractModel
+from src.modules.models.AbstractModel import AbstractModel
 
 from src.modules.layers.AmplificationLayer import AmplificationLayer
 from src.modules.layers.DetectorsLayer import DetectorsLayer
@@ -21,6 +21,13 @@ class RealSpaceD2NN(AbstractModel):
     _HeightMasksModuleList  : torch.nn.ModuleList
     _PropagationModule      : FourierPropagationLayer
 
+    def finalize(self):
+        self._AmplificationModule.delayed.finalize()
+        self._DetectorsModule.delayed.finalize()
+        self._PropagationModule.delayed.finalize()
+        for module in self._HeightMasksModuleList:
+            if isinstance(module, HeightMaskLayer):
+                module.delayed.finalize()
 
     @AbstractModel.accuracy.getter
     def accuracy(self):
@@ -322,6 +329,8 @@ class RealSpaceD2NN(AbstractModel):
         self._HeightMasksModuleList = torch.nn.ModuleList([HeightMaskLayer() for i in range(layers)])
 
         self.amplification.disable()
+        self.normalization.softmax()
+        self.parameters_normalization.sinus()
 
         self.wavelength(wavelength)
         self.space_reflection(space_reflection)
@@ -365,4 +374,6 @@ class RealSpaceD2NN(AbstractModel):
 if __name__ == "__main__":
     from Test import Test
     Test.emission.pixel(RealSpaceD2NN())
-    Test.emission.pixel.variation.parameter(RealSpaceD2NN())
+    Test.emission.MNIST(RealSpaceD2NN())
+    Test.emission.variate.pixel(RealSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')
+    Test.emission.variate.MNIST(RealSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')
