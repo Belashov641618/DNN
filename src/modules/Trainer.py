@@ -55,9 +55,7 @@ class Trainer:
         if hasattr(network, '_pixels') and hasattr(network, '_up_scaling'):
             self.pixels(int(getattr(network, '_pixels') * getattr(network, '_up_scaling')))
 
-        # TODO разобраться, почему finalize не выполняет те-же функции, что и вызов нейронки
-        self._model(torch.zeros(1,1,self._pixels, self._pixels))
-        # self._model.finalize()
+        self._model.finalize()
 
         self._reset_accuracy()
         self._delayed.add(self._reset_optimizer)
@@ -226,12 +224,12 @@ class Trainer:
         gradient_string_function = lambda: 'Средний модуль градиента: ' + Format.Scientific((torch.mean(torch.abs(torch.cat([param.grad.view(-1) for param in self._model.parameters() if param.grad is not None]))).item() if len([p.grad.view(-1) for p in self._model.parameters() if p.grad is not None]) > 0 else 0.0),'')
         CycleStringFunctions.append(gradient_string_function)
 
-        parameters1 = [param.clone().detach() for param in self._model.parameters()]
-        parameters2 = [param.clone().detach() for param in self._model.parameters()]
-        parameters_deviation_string_function1 = lambda: 'Среднее изменение параметров: ' + Format.Scientific(sum(torch.mean(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)) / len(parameters2), '', 6)
-        CycleStringFunctions.append(parameters_deviation_string_function1)
-        parameters_deviation_string_function2 = lambda: 'Максимальное изменение параметров: ' + Format.Scientific(max(torch.max(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)), '', 6)
-        CycleStringFunctions.append(parameters_deviation_string_function2)
+        # parameters1 = [param.clone().detach() for param in self._model.parameters()]
+        # parameters2 = [param.clone().detach() for param in self._model.parameters()]
+        # parameters_deviation_string_function1 = lambda: 'Среднее изменение параметров: ' + Format.Scientific(sum(torch.mean(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)) / len(parameters2), '', 6)
+        # CycleStringFunctions.append(parameters_deviation_string_function1)
+        # parameters_deviation_string_function2 = lambda: 'Максимальное изменение параметров: ' + Format.Scientific(max(torch.max(torch.abs(p2-p1)).item() for p1, p2 in zip(parameters1, parameters2)), '', 6)
+        # CycleStringFunctions.append(parameters_deviation_string_function2)
 
         self._model.train()
         with torch.autograd.set_grad_enabled(True):
@@ -244,8 +242,8 @@ class Trainer:
                     loss_buffer[loss_buffer_index] = loss
                     loss_buffer_index = (loss_buffer_index+1)%loss_buffer_size
                 loss_average = numpy.mean(loss_buffer)
-                parameters1 = [param.clone().detach() for param in parameters2]
-                parameters2 = [param.clone().detach() for param in self._model.parameters()]
+                # parameters1 = [param.clone().detach() for param in parameters2]
+                # parameters2 = [param.clone().detach() for param in self._model.parameters()]
 
         self._model.eval()
         self._reset_accuracy()
@@ -290,16 +288,17 @@ if __name__ == "__main__":
     from src.modules.models.RealSpaceD2NN import RealSpaceD2NN
 
     model = FourierSpaceD2NN()
+
     model.up_scaling(6)
-    model.pixels(20)
-    model.plane_length(20*50.0E-6)
-    model.space(5.0E-3)
-    model.border(5.0E-3)
+    model.pixels(10)
+    model.plane_length(10*50.0E-6)
+    model.space(1.0E-3)
+    model.border(0*1.0E-3)
     model.focus(10.0E-3)
-    model.focus_border(10.0E-3)
+    model.focus_border(0*10.0E-3)
 
     trainer = Trainer(model)
-    trainer.batches(64)
+    trainer.batches(512)
     trainer.loss_function.CrossEntropy()
     trainer.optimizer.Adam(lr=0.01)
 

@@ -7,10 +7,10 @@ from utilities.Formaters import Format
 
 from src.modules.models.AbstractModel import AbstractModel
 
-from src.modules.layers.AmplificationLayer import AmplificationLayer
-from src.modules.layers.DetectorsLayer import DetectorsLayer
-from src.modules.layers.FourierPropagationLayer import FourierPropagationLayer
-from src.modules.layers.HeightMaskLayer import HeightMaskLayer
+from modules.layers.AmplificationLayer import AmplificationLayer
+from modules.layers.DetectorsLayer import DetectorsLayer
+from modules.layers.FourierPropagationLayer import FourierPropagationLayer
+from modules.layers.HeightMaskLayer import HeightMaskLayer
 
 from src.modules.layers.AbstractMaskLayer import sigmoid_normalization, sinus_normalization
 
