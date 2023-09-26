@@ -16,6 +16,7 @@ from src.utilities.UniversalTestsAndOther import StringToDataSetRedirector
 class Trainer:
     _delayed : DelayedFunctions
 
+
     _dataset : str
     _train_loader : DataLoader
     _test_loader : DataLoader
@@ -105,6 +106,12 @@ class Trainer:
                 self._self._optimizer_type = torch.optim.Adam
                 self._self._optimizer_kwargs = {'lr':lr}
                 self._self._delayed.add(self._self._reset_optimizer)
+            def Adadelta(self, lr:float=None):
+                self._self._optimizer_type = torch.optim.Adadelta
+                self._self._optimizer_kwargs = {}
+                if lr is not None:
+                    self._self._optimizer_kwargs = {'lr':lr}
+                self._self._delayed.add(self._self._reset_optimizer)
             def SGD(self, lr:float=..., momentum:float=...):
                 self._self._optimizer_type = torch.optim.SGD
                 self._self._optimizer_kwargs = {
@@ -142,6 +149,7 @@ class Trainer:
                 self._self._device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         return Selector(self)
 
+
     _accuracy : Union[float, None]
     @property
     def accuracy(self):
@@ -149,6 +157,27 @@ class Trainer:
         return self._accuracy
     def _reset_accuracy(self):
         self._accuracy = None
+
+
+    # Эту штуку ещё необходимо доделать, она отвечает за изменение различных параметров с увеличением номера эпохи обучения.
+    _parametrize_dict : Dict
+    @property
+    def parametrize(self):
+        class Selector:
+            _self : Trainer
+            def __init__(self, _self:Trainer):
+                self._self = _self
+            if hasattr(self._model, 'up_scaling'):
+                def up_scaling(self, start:int=1, end:int=self._model.up_scaling.get()):
+                    return
+            if hasattr(self._model, 'border'):
+                def border(self):
+                    return
+            if hasattr(self._model, 'focus_border'):
+                def focus_border(self):
+                    return
+        return Selector(self)
+
 
     def _accuracy_test(self):
         if not hasattr(self, '_device') or self._device is None:
@@ -187,7 +216,6 @@ class Trainer:
                 self._accuracy_test()
 
         self._accuracy = Percent
-
     def _epoch_step(self, images, labels):
         try:
             loss = None
@@ -289,17 +317,20 @@ if __name__ == "__main__":
 
     model = FourierSpaceD2NN()
 
-    model.up_scaling(6)
-    model.pixels(10)
-    model.plane_length(10*50.0E-6)
-    model.space(1.0E-3)
-    model.border(0*1.0E-3)
+    model.up_scaling(3)
+    model.pixels(200)
+    model.plane_length(200*50.0E-6)
+    model.space(10.0E-3)
+    model.border(20*50.0E-6)
     model.focus(10.0E-3)
-    model.focus_border(0*10.0E-3)
+    model.focus_border(40*50.0E-6)
 
     trainer = Trainer(model)
-    trainer.batches(512)
+    trainer.batches(120)
     trainer.loss_function.CrossEntropy()
-    trainer.optimizer.Adam(lr=0.01)
+    trainer.optimizer.Adam(lr=0.005)
 
-    trainer.train()
+    # trainer.train(epochs=2)
+
+    from modules.models.Test import Test
+    Test.compare.MNIST(trainer.model, model, samples=4, description1="После обучения", description2="До обучения")

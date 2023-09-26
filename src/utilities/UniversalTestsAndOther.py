@@ -1011,6 +1011,3 @@ def PlotModelSinglePixelEmissionComparisonParametersSynchronouslyVariation(Model
 
     if show:
         plt.show()
-
-
-
