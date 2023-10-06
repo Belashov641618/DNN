@@ -330,7 +330,7 @@ if __name__ == "__main__":
     trainer.loss_function.CrossEntropy()
     trainer.optimizer.Adam(lr=0.005)
 
-    # trainer.train(epochs=2)
+    trainer.train(epochs=2)
 
     from modules.models.Test import Test
     Test.compare.MNIST(trainer.model, model, samples=4, description1="После обучения", description2="До обучения")

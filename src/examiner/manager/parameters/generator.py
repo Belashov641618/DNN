@@ -3,8 +3,31 @@ import torch
 import json
 import pickle
 import os.path
+import inspect
 from src.utilities.Formaters import Format
 from functools import partial
+
+class get:
+    @staticmethod
+    def properties(obj):
+        return [parameter for parameter in dir(obj) if hasattr(type(obj), parameter) and isinstance(getattr(type(obj), parameter), property)]
+    @staticmethod
+    def methods(obj):
+        return [parameter for parameter in dir(obj) if parameter in ["__call__"] or (parameter not in ["get"] and inspect.ismethod(getattr(obj, parameter)) and not parameter.startswith('_'))]
+    @staticmethod
+    def attributes(function):
+        result = {}
+        for name, info in inspect.signature(function).parameters.items():
+            result[name] = {"type":info.annotation, "default":info.default}
+        return result
+def parse(model:torch.nn.Module):
+    result = {}
+    for parameter in get.properties(model):
+        variants = {}
+        for variant in get.methods(getattr(model, parameter)):
+            variants[variant] = get.attributes(getattr(getattr(model, parameter), variant))
+        result[parameter] = variants
+    return result
 
 def GenerateModelParametersDict(Model:torch.nn.Module):
     '''
@@ -73,6 +96,17 @@ def GenerateModelParametersDict(Model:torch.nn.Module):
 
     return ModelParametersDict
 
+def GenerateParametersDict(model:torch.nn.Module):
+    data = parse(model)
+    print(type(model).__name__ + " parameters:")
+    for parameter, variants in data.items():
+        print("\t" + parameter + " variants:")
+        for variant, attributes in variants.items():
+            print("\t\t" + variant + " attributes:")
+            for name, info in attributes.items():
+                print("\t\t\t" + name, info["type"], info["default"])
+
+
 if __name__ == '__main__':
-    from modules.models.old.FourierSpaceD2NN import FourierSpaceD2NN
-    GenerateModelParametersDict(FourierSpaceD2NN())
+    from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
+    GenerateParametersDict(FourierSpaceD2NN())
