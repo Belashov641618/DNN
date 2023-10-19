@@ -41,12 +41,13 @@ class AbstractMaskLayer(AbstractLayer):
             _self:AbstractMaskLayer
             def __init__(self, _self:AbstractMaskLayer):
                 self._self = _self
-            def get(self, as_int:bool=False):
+            def get(self, description:bool=False, as_int:bool=False):
+                if description:
+                    if   self._self._normalization_type == sigmoid_normalization:   return 'sigmoid', tuple(self._self._normalization_parameters)
+                    elif self._self._normalization_type == sinus_normalization:     return 'sinus', tuple(self._self._normalization_parameters)
                 if as_int: return self._self._normalization_type
-                elif self._self._normalization_type == sigmoid_normalization:
-                    return 'sigmoid'
-                elif self._self._normalization_type == sinus_normalization:
-                    return 'sinus'
+                elif self._self._normalization_type == sigmoid_normalization:   return 'sigmoid'
+                elif self._self._normalization_type == sinus_normalization:     return 'sinus'
             def sigmoid(self):
                 self._self._normalization_type = sigmoid_normalization
                 self._self._normalization_parameters = []

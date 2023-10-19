@@ -21,8 +21,7 @@ _ABSOLUTE_PATH = __file__ + '/../'
 _ADDITIONAL_COLUMNS = [
     ['Id', 'int NOT NULL PRIMARY KEY AUTOINCREMENT'],
     ['Variant', 'int'],
-    ['FinalAccuracy', 'real'],
-    ['TrainInfo', 'blob']
+    ['FinalAccuracy', 'real']
 ]
 _TABLE_NAME = 'MAIN_TABLE'
 
@@ -126,18 +125,9 @@ class DataBase:
 
 
 
-
     # Внутренние методы
     def _pull_parameters_from_model(self, model:torch.nn.Module):
-        parameters = {}
-        for key in self._ModelParameters.keys():
-            if not hasattr(model, key): raise AttributeError("\033[31m\033[1m{}".format('У предоставленной модели отсутсвует аттрибут ' + key + '!'))
-            value = getattr(model, key)
-            if isinstance(value, torch.Tensor):
-                if torch.numel(value) == 1:     value = value.item()
-                else:                           value = list(value)
-            parameters[key] = value
-        return parameters
+        return
 
 
     # Конструктор, диструктор и операторы

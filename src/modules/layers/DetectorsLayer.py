@@ -206,21 +206,18 @@ class DetectorsLayer(AbstractLayer):
             _self:DetectorsLayer
             def __init__(self, _self:DetectorsLayer):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if   self._self._normalization == integral_normalization:   return "integral", ()
+                    elif self._self._normalization == maximum_normalization:    return "maximum", ()
+                    elif self._self._normalization == softmax_normalization:    return "softmax", ()
                 return deepcopy(self._self._normalization)
-            @property
-            def set(self):
-                class Variants:
-                    _self:DetectorsLayer
-                    def __init__(self, _self:DetectorsLayer):
-                        self._self = _self
-                    def integral(self):
-                        self._self._normalization = integral_normalization
-                    def maximum(self):
-                        self._self._normalization = maximum_normalization
-                    def softmax(self):
-                        self._self._normalization = softmax_normalization
-                return Variants(self._self)
+            def integral(self):
+                self._self._normalization = integral_normalization
+            def maximum(self):
+                self._self._normalization = maximum_normalization
+            def softmax(self):
+                self._self._normalization = softmax_normalization
         return Selector(self)
 
     def __init__(self,  detectors:int=10,
