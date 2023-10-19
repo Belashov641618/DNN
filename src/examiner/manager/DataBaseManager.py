@@ -10,17 +10,24 @@ import torch.nn
 
 from src.utilities.Formaters import Format
 
-from src.examiner.manager.parameters.generator import GenerateModelParametersDict
-from src.examiner.utilities.DataBaseTrainer import DataBaseTrainer
+from src.examiner.manager.parameters.generator import GenerateParametersDict
+from modules.Trainer import Trainer
 
 from src.utilities.UniversalTestsAndOther import PlotTroughModelPropagationSamples
 from src.utilities.SimplePlot import TiledPlot
 
 _ABSOLUTE_PATH = __file__ + '/../'
 
+_ADDITIONAL_COLUMNS = [
+    ['Id', 'int NOT NULL PRIMARY KEY AUTOINCREMENT'],
+    ['Variant', 'int'],
+    ['FinalAccuracy', 'real'],
+    ['TrainInfo', 'blob']
+]
+_TABLE_NAME = 'MAIN_TABLE'
+
 class DataBase:
-    # Основные переменные и взаимодействие с ними
-    #   Название типа хранимых моделей и сам тип
+    # Название типа хранимых моделей и сам тип
     _ModelType : Any
     _ModelName : str
     @property
@@ -38,15 +45,16 @@ class DataBase:
     def _changed_ModelName(self):
         self._reset_ParametersDict()
         self._reset_DataBaseConnection()
-    #   Параметры которые ожидаются у модели и способ их хранения
-    _ParametersDict : Dict
+
+    # Параметры которые ожидаются у модели и способ их хранения
+    _ModelParameters : Dict
     def _reset_ParametersDict(self):
-        file_name = _ABSOLUTE_PATH + 'parameters/' + self._ModelName + '_ParametersDict.py'
+        file_name = _ABSOLUTE_PATH + 'parameters/' + self._ModelName + '_PD.py'
         if not os.path.exists(file_name):
             if self._ModelType is not None:
                 answer = input('\033[93m{}\033[0m'.format('Словаря параметров для модели ' + self._ModelName + ' не существует, хотите автоматически создать его? (Y/N): '))
                 if answer == 'Y':
-                    try: GenerateModelParametersDict(self._ModelType())
+                    try: GenerateParametersDict(self._ModelType())
                     except Exception as e: raise Exception("\033[31m\033[1m{}".format('Что-то пошло не так при автоматической генерации словаря параметров! (' + str(e) + ').'))
                 else: Exception("\033[31m\033[1m{}".format('Словаря параметров для модели ' + self._ModelName + ' не существует, автоматическое создание было отменено!'))
                 if not os.path.exists(file_name): raise Exception("\033[31m\033[1m{}".format('Автоматически созданный словарь находится в другой директории! Пытаемся найти словарь в (' + file_name + ').'))
@@ -55,12 +63,9 @@ class DataBase:
         spec = importlib.util.spec_from_file_location("module.name", file_name)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        self._ParametersDict = deepcopy(module.ParametersDict)
+        self._ModelParameters = deepcopy(module.ParametersDict)
 
-        for key in self._ParametersDict.keys():
-            if isinstance(self._ParametersDict[key]['Format'], str):
-                self._ParametersDict[key]['Format'] = pickle.loads(bytes.fromhex(self._ParametersDict[key]['Format']))
-    #   Соединение базы данных и прочие методы
+    # Соединение базы данных и прочие методы
     _DataBaseConnection : sqlite3.Connection
     def _reset_DataBaseConnection(self):
         file_name = _ABSOLUTE_PATH + 'databases/' + self._ModelName + '_ModelsBase.db'
@@ -72,28 +77,60 @@ class DataBase:
         parameters_list = [param.split(' ')[0] for param in self._generate_ParametersString().split(', ')]
         database_parameters = self._get_DataBaseColumns()
         if set(parameters_list) != set(database_parameters): raise Exception("\033[31m\033[1m{}".format('База данных моделей ' + self._ModelName + ' содержит другой отличный набор столбцов!\nПараметры словаря: ' + str(parameters_list) + '\nСтолбцы базы данных' + str(database_parameters)))
+    @staticmethod
+    def _get_parameters_dict_minimum(parameters_dict:Dict):
+        parameters_minimum = {}
+        for parameter, variants in parameters_dict.items():
+            attributes_count = {}
+            for variant, attributes in variants.items():
+                _attributes_count = {}
+                for attribute, info in attributes.items():
+                    _attributes_count[info['type']] += 1
+                for key, value in _attributes_count.items():
+                    if key not in attributes_count.keys():
+                        attributes_count[key] = 0
+                    if attributes_count[key] < value:
+                        attributes_count[key] = value
+            parameters_minimum[parameter] = attributes_count
+        return parameters_minimum
+    @staticmethod
+    def _get_parameter_dict_minimum_columns(parameters_dict:Dict):
+        parameters_dict_minimum = DataBase._get_parameters_dict_minimum(parameters_dict)
+        columns = []
+        for parameter, attributes_count in parameters_dict_minimum.items():
+            columns.append(parameter + '_variant text')
+            for table_type, amount in attributes_count.items():
+                for i in range(amount):
+                    columns.append(parameter + '_' + table_type + '_' + str(i+1) + ' ' + table_type)
+        return columns
     def _generate_ParametersString(self):
-        parameters_string = 'Id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
-        for (parameter_name, data) in self._ParametersDict.items():
-            data_type = data['DataType']
-            parameters_string += parameter_name + ' ' + data_type + ', '
-        parameters_string += 'FinalAccuracy real, TrainInfo text, File blob'
-        return parameters_string
+        columns = []
+        for (name, table_type) in _ADDITIONAL_COLUMNS:
+            columns.append(name + ' ' + table_type)
+
+        model_columns = DataBase._get_parameter_dict_minimum_columns(self._ModelParameters)
+        columns += model_columns
+
+        return ', '.join(columns)
     def _get_DataBaseColumns(self):
         cursor = self._DataBaseConnection.cursor()
         cursor.execute('PRAGMA table_info(databases)')
         return [col[1] for col in cursor.fetchall()]
     def _create_DataBase(self):
-        self._DataBaseConnection.execute('CREATE TABLE databases (' + self._generate_ParametersString() + ')')
+        self._DataBaseConnection.execute('CREATE TABLE ' + _TABLE_NAME + ' (' + self._generate_ParametersString() + ')')
     def _clear_DataBase(self):
-        self._DataBaseConnection.execute('DROP TABLE databases')
+        self._DataBaseConnection.execute('DROP TABLE ' + _TABLE_NAME)
         self._create_DataBase()
+    def _add_training(self):
+        return
+
+
 
 
     # Внутренние методы
     def _pull_parameters_from_model(self, model:torch.nn.Module):
         parameters = {}
-        for key in self._ParametersDict.keys():
+        for key in self._ModelParameters.keys():
             if not hasattr(model, key): raise AttributeError("\033[31m\033[1m{}".format('У предоставленной модели отсутсвует аттрибут ' + key + '!'))
             value = getattr(model, key)
             if isinstance(value, torch.Tensor):
@@ -186,7 +223,7 @@ class DataBase:
                         self._self = original
                     def __call__(self, **kwargs):
                         default_list = {'Id': True, 'FinalAccuracy': True}
-                        for parameter in self._self._ParametersDict.keys():
+                        for parameter in self._self._ModelParameters.keys():
                             default_list[parameter] = True
                         for key, trigger in kwargs.items():
                             if not isinstance(trigger, bool): raise AttributeError("\033[31m\033[1m{}".format('Аттрибуты должны иметь булевые значения True или False'))
@@ -212,8 +249,8 @@ class DataBase:
                             formatted_values = []
                             for value, label in zip(row, self._cols):
                                 value_string = ''
-                                if label in self._self._ParametersDict.keys():
-                                    value_string = self._self._ParametersDict[label]['Format'](value)
+                                if label in self._self._ModelParameters.keys():
+                                    value_string = self._self._ModelParameters[label]['Format'](value)
                                 elif label == 'FinalAccuracy':
                                     value_string = str(round(value, 1)) + '%'
                                 else:
@@ -285,12 +322,28 @@ class DataBase:
 
 
     # Тренировочный модуль
-    _Trainer : DataBaseTrainer
+    _Trainer : Trainer
+    _TrainerParameters : Dict
+    def _reset_TrainerParametersDict(self):
+        file_name = _ABSOLUTE_PATH + 'parameters/' + 'Trainer' + '_PD.py'
+        if not os.path.exists(file_name):
+            answer = input('\033[93m{}\033[0m'.format('Словаря параметров для тренировщика не существует, хотите автоматически создать его? (Y/N): '))
+            if answer == 'Y':
+                try: GenerateParametersDict(self._Trainer)
+                except Exception as e: raise Exception("\033[31m\033[1m{}".format('Что-то пошло не так при автоматической генерации словаря параметров! (' + str(e) + ').'))
+            else: Exception("\033[31m\033[1m{}".format('Словаря параметров для тренировщика не существует, автоматическое создание было отменено!'))
+            if not os.path.exists(file_name): raise Exception("\033[31m\033[1m{}".format('Автоматически созданный словарь находится в другой директории! Пытаемся найти словарь в (' + file_name + ').'))
+
+        spec = importlib.util.spec_from_file_location("module.name", file_name)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self._TrainerParameters = deepcopy(module.ParametersDict)
     @property
     def trainer(self):
         return self._Trainer
     def _initialize_Trainer(self):
-        self._Trainer = DataBaseTrainer()
+        self._Trainer = Trainer()
+        self._reset_TrainerParametersDict()
 
     # Методы пользователя
     def check_existence(self, parameters_dict_or_model:Union[Dict,torch.nn.Module]):
