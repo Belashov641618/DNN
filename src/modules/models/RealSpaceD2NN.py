@@ -1,5 +1,5 @@
 import torch
-from typing import Union, List
+from typing import Union, List, Tuple
 from copy import deepcopy
 
 from utilities.DecimalPrefixes import nm, um, mm, cm
@@ -69,7 +69,12 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if isinstance(self._self._wavelength, torch.Tensor):
+                        return "range", (torch.min(self._self._wavelength), torch.max(self._self._wavelength).item(), self._self._wavelength.numel())
+                    else:
+                        return "__call__", (self._self._wavelength,)
                 return deepcopy(self._self._wavelength)
             def _synchronize(self, length:Union[torch.Tensor, float]):
                 self._self._wavelength = length
@@ -90,7 +95,12 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if isinstance(self._self._space_reflection, torch.Tensor):
+                        return "range", (torch.min(self._self._space_reflection), torch.max(self._self._space_reflection).item(), self._self._space_reflection.numel())
+                    else:
+                        return "__call__", (self._self._space_reflection,)
                 return deepcopy(self._self._space_reflection)
             def _synchronize(self, reflection:Union[torch.Tensor, float]):
                 self._self._space_reflection = reflection
@@ -111,7 +121,12 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if isinstance(self._self._mask_reflection, torch.Tensor):
+                        return "range", (torch.min(self._self._mask_reflection), torch.max(self._self._mask_reflection).item(), self._self._mask_reflection.numel())
+                    else:
+                        return "__call__", (self._self._mask_reflection,)
                 return deepcopy(self._self._mask_reflection)
             def _synchronize(self, reflection:Union[torch.Tensor, float]):
                 self._self._mask_reflection = reflection
@@ -131,7 +146,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._plane_length,)
                 return deepcopy(self._self._plane_length)
             def __call__(self, length:float):
                 self._self._plane_length = length
@@ -145,7 +162,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._pixels,)
                 return deepcopy(self._self._pixels)
             def __call__(self, amount:int):
                 self._self._pixels = amount
@@ -162,7 +181,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._up_scaling,)
                 return deepcopy(self._self._up_scaling)
             def __call__(self, amount:int):
                 self._self._up_scaling = amount
@@ -179,7 +200,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._space,)
                 return deepcopy(self._self._space)
             def __call__(self, length:float):
                 self._self._space = length
@@ -193,7 +216,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._border,)
                 return deepcopy(self._self._border)
             def __call__(self, length:float):
                 self._self._border = length
@@ -207,23 +232,32 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._detectors,)
                 return deepcopy(self._self._detectors)
             def __call__(self, amount:int):
                 self._self._detectors = amount
                 self._self._DetectorsModule.detectors = amount
         return Selector(self)
 
+    _detectors_type_variant : Tuple[str, Tuple]
     @property
     def detectors_type(self):
         class Selector:
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
+            def get(self, description:bool=False):
+                if description:
+                    return self._self._detectors_type_variant
+                return self._self._detectors_type_variant[0]
             def polar(self, borders:float=0.05, space:float=0.2, power:float=0.5):
                 self._self._DetectorsModule.masks.set.polar(borders=borders, space=space, power=power)
+                self._self._detectors_type_variant = ("polar", (borders, space, power))
             def square(self, borders:float=0.05, space:float=0.2):
                 self._self._DetectorsModule.masks.set.square(borders=borders, space=space)
+                self._self._detectors_type_variant = ("square", (borders, space))
         return Selector(self)
 
     @property
@@ -238,12 +272,13 @@ class RealSpaceD2NN(AbstractModel):
             _self:RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self, as_int:bool=False):
+            def get(self, description:bool=False, as_int:bool=False):
+                if description:
+                    if   self._self._normalization_type == sigmoid_normalization:   return 'sigmoid', tuple(self._self._normalization_parameters)
+                    elif self._self._normalization_type == sinus_normalization:     return 'sinus',   tuple(self._self._normalization_parameters)
                 if as_int: return self._self._normalization_type
-                elif self._self._normalization_type == sigmoid_normalization:
-                    return 'sigmoid(x)'
-                elif self._self._normalization_type == sinus_normalization:
-                    return 'sinus(' + str(self._self._normalization_parameters[0]) + '•x)'
+                elif self._self._normalization_type == sigmoid_normalization:   return 'sigmoid(x)'
+                elif self._self._normalization_type == sinus_normalization:     return 'sinus(' + str(self._self._normalization_parameters[0]) + '•x)'
             def sigmoid(self):
                 self._self._normalization_type = sigmoid_normalization
                 self._self._normalization_parameters = []
@@ -265,7 +300,9 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._layers,)
                 return deepcopy(self._self._layers)
             def __call__(self, amount:int):
                 self._self._layers = amount
@@ -301,7 +338,10 @@ class RealSpaceD2NN(AbstractModel):
             _self : RealSpaceD2NN
             def __init__(self, _self:RealSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if self._self._amplification:   return "enable", ()
+                    else:                           return "disable", ()
                 return deepcopy(self._self._amplification)
             def enable(self):
                 self._self._amplification = True

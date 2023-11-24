@@ -32,7 +32,9 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._focus,)
                 return deepcopy(self._self._focus)
             def __call__(self, length:float):
                 self._self._focus = length
@@ -47,7 +49,9 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self:FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._focus_border,)
                 return deepcopy(self._self._focus_border)
             def __call__(self, length:float):
                 self._self._focus_border = length
@@ -60,7 +64,12 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if isinstance(self._self._wavelength, torch.Tensor):
+                        return "range", (torch.min(self._self._wavelength), torch.max(self._self._wavelength).item(), self._self._wavelength.numel())
+                    else:
+                        return "__call__", (self._self._wavelength,)
                 return deepcopy(self._self._wavelength)
             def _synchronize(self, length:Union[torch.Tensor, float]):
                 self._self._wavelength = length
@@ -82,7 +91,12 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    if isinstance(self._self._space_reflection, torch.Tensor):
+                        return "range", (torch.min(self._self._space_reflection), torch.max(self._self._space_reflection).item(), self._self._space_reflection.numel())
+                    else:
+                        return "__call__", (self._self._space_reflection,)
                 return deepcopy(self._self._space_reflection)
             def _synchronize(self, reflection:Union[torch.Tensor, float]):
                 self._self._space_reflection = reflection
@@ -103,7 +117,9 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._plane_length,)
                 return deepcopy(self._self._plane_length)
             def __call__(self, length:float):
                 self._self._plane_length = length
@@ -118,7 +134,9 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._pixels,)
                 return deepcopy(self._self._pixels)
             def __call__(self, amount:int):
                 self._self._pixels = amount
@@ -136,7 +154,9 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
             _self : FourierSpaceD2NN
             def __init__(self, _self:FourierSpaceD2NN):
                 self._self = _self
-            def get(self):
+            def get(self, description:bool=False):
+                if description:
+                    return "__call__", (self._self._up_scaling,)
                 return deepcopy(self._self._up_scaling)
             def __call__(self, amount:int):
                 self._self._up_scaling = amount
@@ -147,7 +167,7 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
                 for module in self._self._HeightMasksModuleList:
                     module.up_scaling = amount
         return Selector(self)
-    # Начало описания параметров
+    # Конец описания параметров
 
 
     def __init__(self,
