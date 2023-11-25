@@ -13,6 +13,7 @@ class AbstractPropagationLayer(AbstractLayer):
             def __init__(self, _self:AbstractPropagationLayer):
                 self._self = _self
             def get(self, to_cpu:bool=True):
+                self._self.delayed.finalize()
                 if to_cpu:
                     return self._self._propagation_buffer.clone().detach().cpu()
                 return self._self._propagation_buffer.clone().detach()

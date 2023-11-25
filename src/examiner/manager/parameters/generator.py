@@ -48,6 +48,7 @@ class get:
                 "format":None
             }
         return result
+
 def parse(model:torch.nn.Module):
     result = {}
     for parameter in get.properties(model):
