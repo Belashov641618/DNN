@@ -15,8 +15,8 @@ from src.modules.layers.KirchhoffPropagationLayer import KirchhoffPropagationLay
 from src.modules.layers.AbstarctLayer import AbstractLayer
 from src.examiner.manager.parameters.generator import get
 
-FormatWidth = 23.4/2
-FormatHeight = 33.1/2
+FormatWidth = 23.4/4
+FormatHeight = 33.1/4/2
 
 def FormatProperties(Layer:AbstractLayer):
     properties_to_describe = {}
@@ -321,8 +321,8 @@ def TestConvMultiplication(N:int=3):
     plane_length = 10.0*mm
     pixels = 51
 
-    Propagation = KirchhoffPropagationLayer(plane_length=plane_length, pixels=N*pixels, up_scaling=1, distance=focus).to(device)
-    # Propagation = FourierPropagationLayer(plane_length=plane_length, pixels=N*pixels, up_scaling=1, distance=focus, border=2*plane_length).to(device)
+    # Propagation = KirchhoffPropagationLayer(plane_length=plane_length, pixels=N*pixels, up_scaling=1, distance=focus).to(device)
+    Propagation = FourierPropagationLayer(plane_length=plane_length, pixels=N*pixels, up_scaling=1, distance=focus, border=25*plane_length).to(device)
     Lens = LensLayer(plane_length=plane_length, pixels=N*pixels, up_scaling=1, focus=focus).to(device)
 
     s = 1
@@ -413,7 +413,7 @@ def CompareConvolutionMultiplication(copies=3, plane_length=30*mm, wavelength=60
             axes = Plot.axes.add((0, 0))
             axes.imshow(torch.abs(field).cpu().squeeze(), **arguments)
             Plot.show()
-            answer = bool(input("Нравится картинка? (0|1): "))
+            answer = True
     field0 = field.clone()
     result = torch.abs(torch.tile(torch.flip(field, (2,3)), (copies, copies)))
     field = torch.nn.functional.pad(field, (max(pixels) * int(copies / 2), max(pixels) * int(copies / 2), max(pixels) * int(copies / 2), max(pixels) * int(copies / 2))).to(torch.complex64).to(device)
@@ -536,4 +536,4 @@ if __name__ == '__main__':
     # ComparePropagationLayers(FourierPropagationLayer(), KirchhoffPropagationLayer())
     # TestMultiplication(5)
     # TestConvMultiplication()
-    CompareConvolutionMultiplication(pixels=(15,31,63,127,255,511,1023), choose_input=True)
+    CompareConvolutionMultiplication(plane_length=10*mm, pixels=(7,15,31), choose_input=True)
