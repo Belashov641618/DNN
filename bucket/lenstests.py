@@ -2,6 +2,7 @@ import torch
 import numpy
 import torchvision
 from typing import Tuple
+from itertools import product
 from belashovplot import TiledPlot
 from src.utilities.Formaters import Format
 from src.utilities.CycleTimePredictor import CycleTimePredictor
@@ -15,8 +16,8 @@ from src.modules.layers.KirchhoffPropagationLayer import KirchhoffPropagationLay
 from src.modules.layers.AbstarctLayer import AbstractLayer
 from src.examiner.manager.parameters.generator import get
 
-FormatWidth = 23.4/4
-FormatHeight = 33.1/4/2
+FormatWidth = 23.4/2
+FormatHeight = 33.1/2/2
 
 def FormatProperties(Layer:AbstractLayer):
     properties_to_describe = {}
@@ -528,6 +529,64 @@ def CompareConvolutionMultiplication(copies=3, plane_length=30*mm, wavelength=60
 
     Plot.show()
 
+
+def TestFFSystem():
+    plane_length = 1.0*mm
+    wavelength = 600*nm
+    pixels = 250
+    up_scaling = 1
+    focus = plane_length*plane_length*pixels / (wavelength * (pixels**2-1))
+
+    arguments = {
+        'aspect': 'auto',
+        'origin': 'lower',
+        'extent': [0, +plane_length, 0, plane_length]
+    }
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    FPropagation = FourierPropagationLayer(wavelength, 1.0, plane_length, pixels, up_scaling, focus, border=plane_length).to(device)
+    LPropagation = FourierPropagationLayer(wavelength, 1.0, plane_length, pixels, up_scaling, focus, border=plane_length).to(device)
+    Lens = LensLayer(focus, wavelength, plane_length, pixels, up_scaling).to(device)
+
+    transform = torchvision.transforms.Resize((pixels, pixels), antialias=True)
+    field = transform(torch.abs(GenerateSingleUnscaledSampleMNIST(True))).to(device).swapdims(2,3).to(torch.complex64)
+
+    ratios = (10.0, 1.5, 1.0, 0.5, 0.1, 0.001)
+    images = len(ratios) + 2
+    cols = int(numpy.sqrt(images))
+    rows = int(images / cols) + (images % cols != 0)
+    indexes = list(product(range(rows), range(cols)))
+
+    Plot = TiledPlot(FormatWidth, FormatHeight)
+    Plot.FontLibrary.MultiplyFontSize(0.6)
+    Plot.title('Сравнение Фурье образов')
+
+    def logscale(image):
+       return torch.log(image - torch.min(image) + 1.0)
+
+    with torch.no_grad():
+        for (i, ratio), (row, col) in zip(enumerate(CycleTimePredictor(ratios)), indexes[2:]):
+            distance = focus*ratio
+            LPropagation.distance = distance
+            result = FPropagation(Lens(LPropagation(field))).squeeze().cpu()
+            #result = LPropagation(field).squeeze().cpu()
+            axes = Plot.axes.add((row, col))
+            axes.imshow(logscale(torch.abs(result)), **arguments)
+            Plot.graph.title('Расстояние: ' + str(ratio) + 'f')
+
+    axes = Plot.axes.add(indexes[0])
+    axes.imshow(logscale(torch.abs(field.squeeze().cpu())), **arguments)
+    Plot.graph.title('Исходное изображение')
+
+    axes = Plot.axes.add(indexes[1])
+    axes.imshow(logscale(torch.abs(torch.fft.fftshift(torch.fft.fft2(field)).squeeze().cpu())), **arguments)
+    Plot.graph.title('Фурье образ fft')
+
+    Plot.show()
+
+
+
 if __name__ == '__main__':
     print("Запуск теста линз")
     # CompareFourierTransformations(FourierPropagationLayer(border=12*1.0E-3, up_scaling=24), LensLayer())
@@ -536,4 +595,5 @@ if __name__ == '__main__':
     # ComparePropagationLayers(FourierPropagationLayer(), KirchhoffPropagationLayer())
     # TestMultiplication(5)
     # TestConvMultiplication()
-    CompareConvolutionMultiplication(plane_length=10*mm, pixels=(7,15,31), choose_input=True)
+    # CompareConvolutionMultiplication(plane_length=10*mm, pixels=(7,15,31), choose_input=True)
+    TestFFSystem()

@@ -6,7 +6,7 @@ from copy import deepcopy
 from .AbstractPropagationLayer import AbstractPropagationLayer
 from .KirchhoffPropagationLayer import KirchhoffPropagationLayer
 
-class FourierPropagationLayer(KirchhoffPropagationLayer):
+class FourierPropagationLayer(AbstractPropagationLayer):
 
     def _recalc_propagation_buffer(self):
         device = torch.device('cpu')
@@ -70,7 +70,7 @@ class FourierPropagationLayer(KirchhoffPropagationLayer):
                         up_scaling:int=8,
                         distance:float=20.0*mm,
                         border:float=0.0*mm):
-        AbstractPropagationLayer.__init__(self)
+        super().__init__()
         self.wavelength = wavelength
         self.reflection = reflection
         self.plane_length = plane_length
@@ -82,7 +82,7 @@ class FourierPropagationLayer(KirchhoffPropagationLayer):
         self._recalc_propagation_buffer()
 
     def forward(self, field:torch.Tensor):
-        AbstractPropagationLayer.forward(self, field)
+        super().forward(field)
 
         field = torch.nn.functional.pad(field, (+self._border_pixels, +self._border_pixels, +self._border_pixels, +self._border_pixels))
         field = torch.fft.fftshift(torch.fft.fft2(field))

@@ -70,6 +70,29 @@ class AbstractPropagationLayer(AbstractLayer):
         self._up_scaling = calculating_pixels_per_pixel
         self._delayed.add(self._recalc_propagation_buffer)
 
+    _distance : float
+    @property
+    def distance(self):
+        return self._distance
+    @distance.setter
+    def distance(self, diffraction_length:float):
+        self._distance = diffraction_length
+        self._delayed.add(self._recalc_propagation_buffer)
+
+    _reflection : torch.Tensor
+    @property
+    def reflection(self):
+        return self._reflection
+    @reflection.setter
+    def reflection(self, space_reflection:Union[float,Iterable,torch.Tensor]):
+        self._reflection = (space_reflection.to(self._accuracy.tensor_complex).requires_grad_(False) if torch.is_tensor(space_reflection) else torch.tensor([space_reflection] if type(space_reflection) is float  else space_reflection, requires_grad=False, dtype=self._accuracy.tensor_complex))
+        if self._reflection.size() != self._wavelength.size():
+            if self._reflection.size(0) == 1:
+                self._reflection = self._reflection.repeat(self._wavelength.size(0))
+            else:
+                raise ValueError("\033[31m\033[1m{}".format(self._get_name() + ': space_reflection size must be one or equal wave_length size!'))
+        self._delayed.add(self._recalc_propagation_buffer)
+
 
     def __init__(self):
         super(AbstractPropagationLayer, self).__init__()
