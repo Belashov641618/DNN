@@ -16,8 +16,8 @@ from src.modules.layers.KirchhoffPropagationLayer import KirchhoffPropagationLay
 from src.modules.layers.AbstarctLayer import AbstractLayer
 from src.examiner.manager.parameters.generator import get
 
-FormatWidth = 23.4/2
-FormatHeight = 33.1/2/2
+FormatWidth = 23.4/2.5
+FormatHeight = 33.1/2/2.5
 
 def FormatProperties(Layer:AbstractLayer):
     properties_to_describe = {}
@@ -531,57 +531,119 @@ def CompareConvolutionMultiplication(copies=3, plane_length=30*mm, wavelength=60
 
 
 def TestFFSystem():
-    plane_length = 1.0*mm
+    # (Изображение) Расплытое до фокуса изображение
+    # (FFT)         Фурье образ расплытого изображения
+    # (IFFT)        IFFT Фурье образа расплытого изображения
+    # (FFT)         Фурье образ изображения
+    # (IFFT)        IFFT Фурье образа изображения
+
+    # Фокусное расстояние
+    # Длинна волны
+    # Количество пикселей
+
+    plane_length = 10.0*mm
     wavelength = 600*nm
-    pixels = 250
+    pixels = 1023
     up_scaling = 1
     focus = plane_length*plane_length*pixels / (wavelength * (pixels**2-1))
+
+    unit, mult = Format.Engineering_Separated(plane_length, 'm')
 
     arguments = {
         'aspect': 'auto',
         'origin': 'lower',
-        'extent': [0, +plane_length, 0, plane_length]
+        'extent': [0, +plane_length*mult, 0, plane_length*mult]
     }
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     FPropagation = FourierPropagationLayer(wavelength, 1.0, plane_length, pixels, up_scaling, focus, border=plane_length).to(device)
     LPropagation = FourierPropagationLayer(wavelength, 1.0, plane_length, pixels, up_scaling, focus, border=plane_length).to(device)
+    DPropagation = FourierPropagationLayer(wavelength, 1.0, plane_length, pixels, up_scaling, focus, border=plane_length).to(device)
     Lens = LensLayer(focus, wavelength, plane_length, pixels, up_scaling).to(device)
 
     transform = torchvision.transforms.Resize((pixels, pixels), antialias=True)
     field = transform(torch.abs(GenerateSingleUnscaledSampleMNIST(True))).to(device).swapdims(2,3).to(torch.complex64)
+    fft = torch.fft.fftshift(torch.fft.fft2(field))
+    ifft = torch.fft.ifft2(torch.fft.ifftshift(fft))
 
-    ratios = (10.0, 1.5, 1.0, 0.5, 0.1, 0.001)
-    images = len(ratios) + 2
-    cols = int(numpy.sqrt(images))
-    rows = int(images / cols) + (images % cols != 0)
-    indexes = list(product(range(rows), range(cols)))
+    Plot = TiledPlot(FormatWidth, FormatHeight, DPI=100)
+    Plot.FontLibrary.MultiplyFontSize(0.5)
+    Plot.title('Сравнение Фурье образов, при вариации расстояния от источника до линзы')
+    Plot.description.top('В данном тесте, фокусное расстояние выбирается так, чтобы в при одинаковых размерах входной и выходной плоскости, в пикселях выхода находились частоты, соответсвующие частотам fft.')
+    Plot.description.bottom('Длинна волны: ' + Format.Engineering(wavelength, 'm', 2)
+                            + ', Количество пикселей: ' + str(pixels*up_scaling)
+                            + ', Фокуное расстояние линзы: ' + Format.Engineering(focus, 'm')
+                            + ', По осям картинок отложены ' + unit
+                            + '.')
 
-    Plot = TiledPlot(FormatWidth, FormatHeight)
-    Plot.FontLibrary.MultiplyFontSize(0.6)
-    Plot.title('Сравнение Фурье образов')
+    log_scale       = lambda x: torch.log10(x)
+    abs_show        = lambda x: torch.abs(x).squeeze().cpu()
+    log_abs_show    = lambda x: log_scale(abs_show(x))
 
-    def logscale(image):
-       return torch.log(image - torch.min(image) + 1.0)
+    axes = Plot.axes.add((0, 0))
+    axes.imshow(abs_show(field), **arguments)
+    # Plot.graph.title('Источник')
+    Plot.description.row.left('Источник', 0)
+    Plot.description.row.right('Распространённый источник', 0)
+
+    axes = Plot.axes.add((0, 1))
+    axes.imshow(log_abs_show(fft), **arguments)
+    # Plot.graph.title('FFT')
+    Plot.description.row.left('FFT', 1)
+    Plot.description.row.right('Образ распространённого (f-f)', 1)
+
+    axes = Plot.axes.add((0, 2))
+    axes.imshow(abs_show(ifft), **arguments)
+    # Plot.graph.title('IFFT')
+    Plot.description.row.left('IFFT', 2)
+    Plot.description.row.right('IFFT образа распространённого (f-f)', 2)
+
+    axes = Plot.axes.add((0, 3))
+    axes.imshow(log_abs_show(fft), **arguments)
+    # Plot.graph.title('FFT')
+    Plot.description.row.left('FFT', 3)
+    Plot.description.row.right('Образ изображения (rf-f)', 3)
+
+    axes = Plot.axes.add((0, 4))
+    axes.imshow(abs_show(ifft), **arguments)
+    # Plot.graph.title('IFFT')
+    Plot.description.row.left('IFFT', 4)
+    Plot.description.row.right('IFFT образа изображения (rf-f)', 4)
+
+    Plot.description.column.top('Референсные данные', 0)
+
+    ratios = (10.0, 2.0, 1.0, 1.0/2.0, 1.0/10.0)
 
     with torch.no_grad():
-        for (i, ratio), (row, col) in zip(enumerate(CycleTimePredictor(ratios)), indexes[2:]):
+        for (i, ratio) in enumerate(CycleTimePredictor(ratios), 1):
+            Plot.description.column.top('Источник-линза: ' + Format.Scientific(ratio, 'f', 2), i)
+
             distance = focus*ratio
             LPropagation.distance = distance
-            result = FPropagation(Lens(LPropagation(field))).squeeze().cpu()
-            #result = LPropagation(field).squeeze().cpu()
-            axes = Plot.axes.add((row, col))
-            axes.imshow(logscale(torch.abs(result)), **arguments)
-            Plot.graph.title('Расстояние: ' + str(ratio) + 'f')
+            DPropagation.distance = distance - focus
 
-    axes = Plot.axes.add(indexes[0])
-    axes.imshow(logscale(torch.abs(field.squeeze().cpu())), **arguments)
-    Plot.graph.title('Исходное изображение')
+            p_field = DPropagation(field)
+            p_fft = FPropagation(Lens(FPropagation(p_field)))
+            p_ifft = torch.fft.ifftshift(torch.fft.ifft2(p_fft))
+            n_fft = FPropagation(Lens(LPropagation(field)))
+            n_ifft = torch.fft.ifftshift(torch.fft.ifft2(n_fft))
 
-    axes = Plot.axes.add(indexes[1])
-    axes.imshow(logscale(torch.abs(torch.fft.fftshift(torch.fft.fft2(field)).squeeze().cpu())), **arguments)
-    Plot.graph.title('Фурье образ fft')
+            axes = Plot.axes.add((i, 0))
+            axes.imshow(abs_show(p_field), **arguments)
+
+            axes = Plot.axes.add((i, 1))
+            axes.imshow(log_abs_show(p_fft), **arguments)
+
+            axes = Plot.axes.add((i, 2))
+            axes.imshow(abs_show(p_ifft), **arguments)
+
+            axes = Plot.axes.add((i, 3))
+            axes.imshow(log_abs_show(n_fft), **arguments)
+
+            axes = Plot.axes.add((i, 4))
+            axes.imshow(abs_show(n_ifft), **arguments)
+
 
     Plot.show()
 
