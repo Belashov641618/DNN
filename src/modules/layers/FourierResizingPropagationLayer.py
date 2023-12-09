@@ -271,6 +271,9 @@ class FourierResizingPropagationLayer(AbstractPropagationLayer):
 class Test:
     class gap:
         @staticmethod
+        def _get_distance():
+            return
+        @staticmethod
         def _two(propagation:FourierResizingPropagationLayer, d:float, b:float, h:float, a:float, show:int=3):
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
             propagation.to(device)
@@ -355,7 +358,7 @@ class Test:
 
             plot.show()
         @staticmethod
-        def two_cut(propagation:FourierResizingPropagationLayer, d:float, b:float, h:float, a_max:int, show:int=3, plot:belashovplot.TiledPlot=None, points:int=10):
+        def two_multy(propagation:FourierResizingPropagationLayer, d:float, b:float, h:float, a_max:float, show:int=3, plot:belashovplot.TiledPlot=None, points:int=11):
             import numpy
             field = None
             results = []
@@ -363,7 +366,12 @@ class Test:
             in_plane_lengths = []
             out_plane_lengths = []
             from src.utilities.CycleTimePredictor import CycleTimePredictor
-            for a in CycleTimePredictor(numpy.linspace(-a_max, +a_max, points)):
+            points1 = int(points/2)
+            points2 = points - points1
+            a_range_1 = numpy.linspace(1.0, a_max, points1+1)
+            a_range_2 = 1.0 / numpy.linspace(1.0, a_max, points2)[1:]
+            a_range = numpy.concatenate([a_range_1, a_range_2])
+            for a in CycleTimePredictor(a_range):
                 field, result, distance, in_plane_length, out_plane_length = Test.gap._two(propagation, d, b, h, a, show)
                 results.append(result)
                 distances.append(distance)
@@ -373,29 +381,48 @@ class Test:
             from belashovplot import TiledPlot
             if plot is None: plot = TiledPlot(8,8)
             plot.title('Распространение с разными параметрами')
+            plot.FontLibrary.MultiplyFontSize(0.7)
 
             amount = points + 1
             rows = int(numpy.sqrt(amount))
+            if rows == 0: rows = 1
             cols = amount / rows
             cols = int(cols) + (cols % 1.0 > 0)
 
             from itertools import product
-            col_row = list[product(range(cols), range(rows))]
+            col_row = list(product(range(cols), range(rows)))
 
-            for result, distance, out_plane_length, (col, row) in zip(results, distances, out_plane_lengths, col_row[1:]):
+            from src.utilities.Formaters import Format
+            for result, ratio, distance, out_plane_length, (col, row) in zip(results, a_range, distances, out_plane_lengths, col_row[1:]):
+                unit, mult = Format.Engineering_Separated(out_plane_length, 'm')
                 arguments = {
                     'cmap': 'gray',
                     'aspect': 'auto',
-                    'extent': [-out_plane_length / 2, +out_plane_length / 2, -out_plane_length / 2, +out_plane_length / 2]
+                    'extent': [-out_plane_length*mult / 2, +out_plane_length*mult / 2, -out_plane_length*mult / 2, +out_plane_length*mult / 2]
                 }
                 axes = plot.axes.add(col, row)
                 axes.imshow(torch.abs(result).squeeze().cpu(), **arguments)
-                plot.graph.description('Расстояние: ' + str(round(distance)))
+                plot.graph.description('Отношение к размеру внешнего поля: ' + str(round(ratio, 2)) + '\nРасстояние дифракции: ' + Format.Engineering(distance, 'm'))
+                plot.graph.label.x(unit)
+                plot.graph.label.y(unit)
 
+            arguments = {
+                'cmap': 'gray',
+                'aspect': 'auto',
+                'extent': [-in_plane_lengths[0] / 2, +in_plane_lengths[0] / 2, -in_plane_lengths[0] / 2, +in_plane_lengths[0] / 2]
+            }
+            axes = plot.axes.add(0,0)
+            axes.imshow(torch.abs(field).squeeze().cpu(), **arguments)
+            plot.graph.description("Исходное изображение")
 
+            plot.show()
+        @staticmethod
+        def two_cut(propagation:FourierResizingPropagationLayer, d:float, b:float, h:float, a_max:float, a_min:float, show:int=3, plot:belashovplot.TiledPlot=None, points:int=50):
+            return
 
 if __name__ == '__main__':
-    PropagationLayer = FourierResizingPropagationLayer(600*nm, 1.0, 20*mm, 1*mm, 101, 3, 1*mm, 202, 3, 1*mm*3)
+    PropagationLayer = FourierResizingPropagationLayer(600*nm, 1.0, 20*mm, 1*mm, 202, 3, 1*mm, 202, 3, 1*mm*3)
     PropagationLayer.antialiasing.disable()
-    PropagationLayer.interpolation.nearest()
-    Test.gap.two_cut(PropagationLayer, 1*mm, 30*um, 30*um, 2.0)
+    PropagationLayer.interpolation.bilinear()
+    Test.gap.two(PropagationLayer, 1*mm, 30*um, 30*um, 2.0, 3)
+    #Test.gap.two_cut(PropagationLayer, 1*mm, 30*um, 30*um, 1.05)
