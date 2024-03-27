@@ -2,7 +2,7 @@ import torch
 from typing import Union, List
 from copy import deepcopy
 
-from utilities.DecimalPrefixes import nm, um, mm, cm
+from utilities.DecimalPrefixes import nm, mm
 from utilities.Formaters import Format
 
 from src.modules.models.RealSpaceD2NN import RealSpaceD2NN
@@ -260,7 +260,7 @@ class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):
 
 
 if __name__ == '__main__':
-    from Test import Test
+    from modules.Test import Test
     Test.emission.pixel(FourierSpaceD2NN())
     Test.emission.MNIST(FourierSpaceD2NN())
     Test.emission.variate.pixel(FourierSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')

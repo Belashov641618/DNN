@@ -186,6 +186,7 @@ class Test:
 
             field0 = resize(torch.abs(GenerateSingleUnscaledSampleMNIST(only_image=True)), [pixels*up_scaling, pixels*up_scaling]).to(torch.complex64)
             Test.emission(model, field0=field0)
+
         class variate:
             def __init__(self, model:torch.nn.Module, param:str, values:Iterable, unit:str, field0:torch.Tensor):
                 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

@@ -2,7 +2,7 @@ import torch
 from typing import Union, List, Tuple
 from copy import deepcopy
 
-from utilities.DecimalPrefixes import nm, um, mm, cm
+from utilities.DecimalPrefixes import nm, mm
 from utilities.Formaters import Format
 
 from src.modules.models.AbstractModel import AbstractModel
@@ -412,7 +412,7 @@ class RealSpaceD2NN(AbstractModel):
 
 
 if __name__ == "__main__":
-    from Test import Test
+    from modules.Test import Test
     Test.emission.pixel(RealSpaceD2NN())
     Test.emission.MNIST(RealSpaceD2NN())
     Test.emission.variate.pixel(RealSpaceD2NN(), param='space', values=(2.*mm, 5.*mm, 10.*mm), unit='m')

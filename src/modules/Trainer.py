@@ -313,7 +313,6 @@ class Trainer:
 
 if __name__ == "__main__":
     from src.modules.models.FourierSpaceD2NN import FourierSpaceD2NN
-    from src.modules.models.RealSpaceD2NN import RealSpaceD2NN
 
     model = FourierSpaceD2NN()
 
@@ -332,5 +331,5 @@ if __name__ == "__main__":
 
     trainer.train(epochs=2)
 
-    from modules.models.Test import Test
+    from modules.Test import Test
     Test.compare.MNIST(trainer.model, model, samples=4, description1="После обучения", description2="До обучения")
