@@ -5,7 +5,7 @@ import numpy
 from copy import deepcopy
 from typing import Union, Iterable, Tuple, List, Dict
 
-from src.modules.layers.AbstarctLayer import AbstractLayer
+from .AbstarctLayer import AbstractLayer
 
 manual_type:int = 0
 square_type:int = 1

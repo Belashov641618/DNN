@@ -1,6 +1,6 @@
 import torch
 
-from src.modules.layers.AbstarctLayer import AbstractLayer
+from ..layers.AbstarctLayer import AbstractLayer
 
 class AbstractModel(AbstractLayer):
 

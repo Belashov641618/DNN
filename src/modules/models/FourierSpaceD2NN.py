@@ -5,13 +5,13 @@ from copy import deepcopy
 from utilities.DecimalPrefixes import nm, mm
 from utilities.Formaters import Format
 
-from src.modules.models.RealSpaceD2NN import RealSpaceD2NN
-from src.modules.models.AbstractModel import AbstractModel
-from src.modules.layers.LensLayer import LensLayer
-from src.modules.layers.FourierPropagationLayer import FourierPropagationLayer
-from modules.layers.AmplificationLayer import AmplificationLayer
-from modules.layers.HeightMaskLayer import HeightMaskLayer
-from modules.layers.DetectorsLayer import DetectorsLayer
+from ..models.RealSpaceD2NN import RealSpaceD2NN
+from ..models.AbstractModel import AbstractModel
+from ..layers.LensLayer import LensLayer
+from ..layers.FourierPropagationLayer import FourierPropagationLayer
+from ..layers.AmplificationLayer import AmplificationLayer
+from ..layers.HeightMaskLayer import HeightMaskLayer
+from ..layers.DetectorsLayer import DetectorsLayer
 
 
 class FourierSpaceD2NN(RealSpaceD2NN, AbstractModel):

@@ -1,6 +1,6 @@
 import torch
 
-from modules.layers.AbstarctLayer import AbstractLayer
+from .AbstarctLayer import AbstractLayer
 
 class AmplificationLayer(AbstractLayer):
 

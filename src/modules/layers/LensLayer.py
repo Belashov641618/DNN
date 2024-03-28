@@ -1,8 +1,8 @@
 import torch
 from typing import Union, Iterable
 
-from src.utilities.DecimalPrefixes import mm, nm
-from src.modules.layers.AbstractPropagationLayer import AbstractPropagationLayer
+from utilities.DecimalPrefixes import mm, nm
+from .AbstractPropagationLayer import AbstractPropagationLayer
 
 
 class LensLayer(AbstractPropagationLayer):

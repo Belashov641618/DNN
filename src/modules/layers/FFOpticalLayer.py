@@ -1,12 +1,12 @@
 import torch
 from typing import Union, Iterable
 
-from src.utilities.DecimalPrefixes import nm,mm,um
+from utilities.DecimalPrefixes import nm,mm,um
 
-from src.modules.layers.AbstarctLayer import AbstractLayer
+from .AbstarctLayer import AbstractLayer
 
-from src.modules.layers.LensLayer import LensLayer
-from src.modules.layers.FraunhoferPropagationLayer import FraunhoferPropagationLayer
+from .LensLayer import LensLayer
+from .FraunhoferPropagationLayer import FraunhoferPropagationLayer
 
 class FFOpticalLayer(AbstractLayer):
 

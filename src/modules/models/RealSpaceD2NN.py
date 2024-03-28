@@ -5,14 +5,14 @@ from copy import deepcopy
 from utilities.DecimalPrefixes import nm, mm
 from utilities.Formaters import Format
 
-from src.modules.models.AbstractModel import AbstractModel
+from ..models.AbstractModel import AbstractModel
 
-from modules.layers.AmplificationLayer import AmplificationLayer
-from modules.layers.DetectorsLayer import DetectorsLayer
-from modules.layers.FourierPropagationLayer import FourierPropagationLayer
-from modules.layers.HeightMaskLayer import HeightMaskLayer
+from ..layers.AmplificationLayer import AmplificationLayer
+from ..layers.DetectorsLayer import DetectorsLayer
+from ..layers.FourierPropagationLayer import FourierPropagationLayer
+from ..layers.HeightMaskLayer import HeightMaskLayer
 
-from src.modules.layers.AbstractMaskLayer import sigmoid_normalization, sinus_normalization
+from ..layers.AbstractMaskLayer import sigmoid_normalization, sinus_normalization
 
 class RealSpaceD2NN(AbstractModel):
 

@@ -4,8 +4,8 @@ from utilities.DecimalPrefixes import nm, mm, um
 from torchvision.transforms.functional import resize
 from torchvision.transforms import InterpolationMode
 
-from src.modules.layers.AbstractPropagationLayer import AbstractPropagationLayer
-from src.modules.layers.AbstractResizingPropagationLayer import AbstractResizingPropagationLayer
+from .AbstractPropagationLayer import AbstractPropagationLayer
+from .AbstractResizingPropagationLayer import AbstractResizingPropagationLayer
 
 class FraunhoferPropagationLayer(AbstractResizingPropagationLayer):
 

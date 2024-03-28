@@ -2,9 +2,9 @@ import torch
 import numpy
 from typing import Union, Iterable
 
-from src.utilities.DecimalPrefixes import mm, nm
-from src.modules.layers.LensLayer import LensLayer
-from src.modules.layers.AbstractPropagationLayer import AbstractPropagationLayer
+from utilities.DecimalPrefixes import mm, nm
+from .LensLayer import LensLayer
+from .AbstractPropagationLayer import AbstractPropagationLayer
 
 
 class MultiLensLayer(LensLayer):
