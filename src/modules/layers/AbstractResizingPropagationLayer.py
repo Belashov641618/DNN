@@ -1,8 +1,6 @@
 import torch
 from typing import Union, Iterable
-from utilities.DecimalPrefixes import nm, mm
-from torchvision.transforms.functional import resize
-from torchvision.transforms import InterpolationMode
+from ...utilities.DecimalPrefixes import nm, mm
 
 from .AbstractPropagationLayer import AbstractPropagationLayer
 
