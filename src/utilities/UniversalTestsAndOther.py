@@ -11,10 +11,10 @@ import os
 import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
-from src.utilities.Colorize import Colorizer
-from src.utilities.Formaters import Format
-from src.utilities.DecimalPrefixes import cm
-from src.utilities.TitledFigure import Titles
+from .Colorize import Colorizer
+from .Formaters import Format
+from .DecimalPrefixes import cm
+from .TitledFigure import Titles
 
 from modules.layers.old.DetectorsLayer import DetectorsLayer
 
