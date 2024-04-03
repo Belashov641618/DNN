@@ -1,7 +1,7 @@
 import torch
 
-from utilities.DelayedFunctions import DelayedFunctions
-from utilities.Accuracy import Accuracy
+from ...utilities.DelayedFunctions import DelayedFunctions
+from ...utilities.Accuracy import Accuracy
 
 class AbstractLayer(torch.nn.Module):
     _delayed: DelayedFunctions
