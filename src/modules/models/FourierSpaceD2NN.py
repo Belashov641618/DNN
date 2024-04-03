@@ -2,8 +2,8 @@ import torch
 from typing import Union, List
 from copy import deepcopy
 
-from utilities.DecimalPrefixes import nm, mm
-from utilities.Formaters import Format
+from ...utilities.DecimalPrefixes import nm, mm
+from ...utilities.Formaters import Format
 
 from ..models.RealSpaceD2NN import RealSpaceD2NN
 from ..models.AbstractModel import AbstractModel
