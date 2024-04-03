@@ -108,7 +108,7 @@ def test_gaussian_3d(samples_t:int, samples_xy:int, Nxy=1000, fps:float=30, seco
         number = round(sigma_xy / (10**power), 2)
         plot.description.row.left(f'{number}*10^{power}', row)
 
-    kwargs = {'aspect':'auto', 'cmap':'grey', 'extent':[-1., +1., -1., +1.]}
+    kwargs = {'aspect':'auto', 'cmap':'gray', 'extent':[-1., +1., -1., +1.]}
     images_list = []
     for col, row, video in data:
         axes = plot.axes.add(col, row)
@@ -166,6 +166,6 @@ def test_gaussian_2d(samples:int, N=1000):
     plot.show()
 def test():
     # test_gaussian_2d(7, 1000)
-    test_gaussian_3d(5, 4, 512, 1, 3.0)
+    test_gaussian_3d(5, 4, 512, 60, 3.0)
 if __name__ == '__main__':
     test()
