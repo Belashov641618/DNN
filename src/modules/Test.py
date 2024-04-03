@@ -2,11 +2,11 @@ import torch
 from torchvision.transforms.functional import resize
 from typing import Iterable, List, Union
 
-from utilities.Formaters import Format
-from utilities.DecimalPrefixes import mm
+from ..utilities.Formaters import Format
+from ..utilities.DecimalPrefixes import mm
 
-from modules.layers.DetectorsLayer import DetectorsLayer
-from src.utilities.UniversalTestsAndOther import GenerateSingleUnscaledSampleMNIST
+from .layers.DetectorsLayer import DetectorsLayer
+from ..utilities.UniversalTestsAndOther import GenerateSingleUnscaledSampleMNIST
 
 from belashovplot import TiledPlot
 
