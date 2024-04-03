@@ -16,7 +16,7 @@ from .Formaters import Format
 from .DecimalPrefixes import cm
 from .TitledFigure import Titles
 
-from modules.layers.old.DetectorsLayer import DetectorsLayer
+from ..modules.layers.old.DetectorsLayer import DetectorsLayer
 
 def StringToDataSetRedirector(data_set_name:str, train:bool=True, transformation:Any=None, input_pixels:int=None):
 
