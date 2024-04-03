@@ -1,6 +1,6 @@
 from typing import Union, List, Iterable, Any, Tuple
 import sys
-from src.utilities.Formaters import Format
+from .Formaters import Format
 from time import time as timer
 import numpy
 class CycleTimePredictor:
