@@ -1,3 +1,3 @@
-from . import examiner
-from . import modules
-from . import utilities
+import examiner
+import modules
+import utilities
