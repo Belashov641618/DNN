@@ -2,7 +2,7 @@ import torch
 import numpy
 from typing import Union, Iterable
 
-from utilities.DecimalPrefixes import mm, nm
+from ...utilities.DecimalPrefixes import mm, nm
 from .LensLayer import LensLayer
 from .AbstractPropagationLayer import AbstractPropagationLayer
 

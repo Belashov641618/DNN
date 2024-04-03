@@ -5,7 +5,7 @@ from torchvision.transforms.functional import resize
 from typing import Union, Iterable
 
 from .AbstractPropagationLayer import AbstractPropagationLayer
-from utilities.DecimalPrefixes import nm, mm, um, cm
+from ...utilities.DecimalPrefixes import nm, mm, um, cm
 
 EQLMode = 1
 PPRMode = 2

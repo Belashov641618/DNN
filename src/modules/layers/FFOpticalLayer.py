@@ -1,7 +1,7 @@
 import torch
 from typing import Union, Iterable
 
-from utilities.DecimalPrefixes import nm,mm,um
+from ...utilities.DecimalPrefixes import nm,mm,um
 
 from .AbstarctLayer import AbstractLayer
 

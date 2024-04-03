@@ -1,7 +1,7 @@
 import torch
 from typing import Union, Iterable
 from copy import deepcopy
-from utilities.DecimalPrefixes import nm
+from ...utilities.DecimalPrefixes import nm
 
 from .AbstractMaskLayer import AbstractMaskLayer
 

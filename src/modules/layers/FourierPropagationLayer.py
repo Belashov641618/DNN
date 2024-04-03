@@ -1,6 +1,6 @@
 import torch
 from typing import Union, Iterable
-from utilities.DecimalPrefixes import nm, mm
+from ...utilities.DecimalPrefixes import nm, mm
 from copy import deepcopy
 
 from .AbstractPropagationLayer import AbstractPropagationLayer

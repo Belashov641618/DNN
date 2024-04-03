@@ -1,6 +1,6 @@
 import torch
 from typing import Union, Iterable
-from utilities.DecimalPrefixes import nm, mm, um
+from ...utilities.DecimalPrefixes import nm, mm, um
 from torchvision.transforms.functional import resize
 from torchvision.transforms import InterpolationMode
 
