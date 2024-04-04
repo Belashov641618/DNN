@@ -10,8 +10,6 @@ from itertools import product
 from belashovplot import TiledPlot
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
-# import matplotlib.animation as animation
-# animation.writers['ffmpeg'].executable = 'C:\\Program Files\\FFmpeg\\bin\\ffmpeg.exe'
 
 if __name__ == '__main__':
     from filters import Gaussian as _gaussian_generator
@@ -38,12 +36,12 @@ class FourierMask:
 
     def sample(self) -> torch.Tensor:
         spectrum = torch.rand(self.size, device=self.device, dtype=self.dtype)*torch.exp(2j*torch.pi*torch.rand(self.size, device=self.device, dtype=self.dtype)) * self._mask
-        return torch.abs(torch.fft.ifftn(spectrum)).to(self.dtype)
+        return torch.sqrt(torch.abs(torch.fft.ifftn(spectrum))).to(self.dtype)
 
-def gaussian(sigmas:Union[Iterable[float],float], counts:Union[Iterable[int],int], limits:Union[Iterable[Tuple[float,float]],Tuple[float, float]]=None, device:torch.device=None, generator:bool=False) -> Union[torch.Tensor, FourierMask]:
+def gaussian(areas:Union[Iterable[float],float], counts:Union[Iterable[int],int], limits:Union[Iterable[Tuple[float,float]],Tuple[float, float]]=None, device:torch.device=None, generator:bool=False) -> Union[torch.Tensor, FourierMask]:
     sigmas_:Tuple[float, ...]
-    if isinstance(sigmas, float):   sigmas_ = (sigmas, )
-    else:                           sigmas_ = tuple(sigmas)
+    if isinstance(areas, float):    sigmas_ = (areas,)
+    else:                           sigmas_ = tuple(areas)
 
     dims = len(sigmas_)
 
@@ -61,9 +59,13 @@ def gaussian(sigmas:Union[Iterable[float],float], counts:Union[Iterable[int],int
     if len(sigmas_) != dims or len(counts_) != dims or len(limits_) != dims: raise AssertionError('Lengths of sigmas and counts and limits are not equal')
 
     sigmas_temp = []
-    for sigma, count in zip(sigmas_, counts_):
-        sigmas_temp.append(sigma*100/count)
+    limits_temp = []
+    for sigma, count, limit in zip(sigmas_, counts_, limits_):
+        length = limit[1] - limit[0]
+        sigmas_temp.append(2.0*math.pi / sigma)
+        limits_temp.append((-(count//2)*2*math.pi/length, ((count - 1)//2)*2*math.pi/length))
     sigmas_ = tuple(sigmas_temp)
+    limits_ = tuple(limits_temp)
 
     if device is None: device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -74,19 +76,16 @@ def gaussian(sigmas:Union[Iterable[float],float], counts:Union[Iterable[int],int
     else:
         return FourierMask(mask).sample()
 
-
-
-
 test_figure_width:float  = 16.
 test_figure_height:float = 9.
 def test_gaussian_3d(samples_t:int, samples_xy:int, Nxy=1000, fps:float=30, seconds:float=5.0):
     Nt = int(seconds*fps)
     limits = ((-1., +1.), (-1., +1.), (0., 1.))
-    sigmas_xy = numpy.logspace(-2, 0, samples_xy)
-    sigmas_t = numpy.logspace(-2, 0, samples_t)
+    areas_xy = numpy.logspace(-2, 0, samples_xy)
+    areas_t = numpy.logspace(-2, 0, samples_t)
 
-    col_generator = zip(range(samples_t),  sigmas_t)
-    row_generator = zip(range(samples_xy), sigmas_xy)
+    col_generator = zip(range(samples_t),  areas_t)
+    row_generator = zip(range(samples_xy), areas_xy)
 
     data:list[tuple[int, int, torch.Tensor], ...] = []
     for (col, sigma_t), (row, sigma_xy) in tqdm(product(col_generator, row_generator)):
@@ -131,9 +130,9 @@ def test_gaussian_3d(samples_t:int, samples_xy:int, Nxy=1000, fps:float=30, seco
 
     animation.save('test.gif')
     plot.show()
-def test_gaussian_2d(samples:int, N=1000):
+def test_gaussian_2d(samples:int, N:int=1000):
     limits = ((-1., +1.), (-1., +1.))
-    sigmas = numpy.logspace(-2, 0, samples)
+    areas = numpy.logspace(-2, +2, samples)
 
     plot = TiledPlot(test_figure_width, test_figure_height)
     plot.FontLibrary.MultiplyFontSize(0.7)
@@ -144,19 +143,16 @@ def test_gaussian_2d(samples:int, N=1000):
     plot.description.row.left('Ядро модуляции', 1)
 
     kwargs = {'aspect':'auto', 'cmap':'viridis', 'extent':[-1., +1., -1., +1.]}
-    for (col, sigma) in zip(range(samples), sigmas):
+    for (col, sigma) in zip(range(samples), areas):
         power = int(math.log10(sigma))
         number = round(sigma / (10 ** power), 2)
-        # plot.description.column.top(f'$\\sigma={number}{{\bullet}}10^{{{power}}}$', col)
-        plot.description.column.top(f'{number}*10^{power}', col)
-
+        plot.description.column.top(f'$\\sigma={number}{{\\bullet}}10^{{{power}}}$', col)
 
         sigmas_ = (sigma, sigma)
         counts = (N, N)
         generator = gaussian(sigmas_, counts, limits, generator=True)
         core = generator._mask.cpu()
         image = generator.sample().cpu()
-        spectrum = torch.fft.fftshift(torch.fft.fft2(image))
 
         axes = plot.axes.add(col, 0)
         axes.imshow(image, **kwargs)
@@ -164,8 +160,65 @@ def test_gaussian_2d(samples:int, N=1000):
         axes = plot.axes.add(col, 1)
         axes.imshow(core, **kwargs)
     plot.show()
+def test_gaussian_2d_N(samples:int, Ns:Iterable[int]):
+    limits = ((-1., +1.), (-1., +1.))
+    areas = numpy.logspace(-1, 0, samples)
+
+    plot = TiledPlot(test_figure_width, test_figure_height)
+    plot.FontLibrary.MultiplyFontSize(0.7)
+    plot.FontLibrary.SynchronizeFont('DejaVu Sans')
+    plot.title('Генерация шума через модуляцию случайного Фурье образа Гауссом')
+
+    for row, N in enumerate(Ns):
+        plot.description.row.left(f"$N={N}шт$", row)
+
+    kwargs = {'aspect':'auto', 'cmap':'viridis', 'extent':[-1., +1., -1., +1.]}
+    for (col, sigma) in zip(range(samples), areas):
+        power = int(math.log10(sigma))
+        number = round(sigma / (10 ** power), 2)
+        plot.description.column.top(f'$\\sigma={number}{{\\bullet}}10^{{{power}}}$', col)
+
+        for row, N in enumerate(Ns):
+            sigmas_ = (sigma, sigma)
+            counts = (N, N)
+            image = gaussian(sigmas_, counts, limits, generator=False).cpu()
+
+            axes = plot.axes.add(col, row)
+            axes.imshow(image, **kwargs)
+    plot.show()
+def test_gaussian_pirson_xy(samples:int, N:int, mean_count:int=30):
+    limits = ((0, 1.0E+8), (-1., +1.), (-1., +1.))
+    sigmas = numpy.logspace(-1, 0, samples)
+
+    padding = (N+1)//2
+
+    plot = TiledPlot(test_figure_width, test_figure_height)
+    plot.FontLibrary.MultiplyFontSize(0.7)
+    plot.FontLibrary.SynchronizeFont('DejaVu Sans')
+    plot.title('Автокорреляция двумерного шума, полученного через модуляцию случайного Фурье образа Гауссом')
+
+    for col, area in enumerate(tqdm(sigmas)):
+        with torch.no_grad():
+            data = gaussian((1.0E-8, area, area), (mean_count, N, N), limits, generator=False)
+            data = data - torch.mean(data, dim=0, keepdim=True)
+
+            coefficients = torch.zeros(N, N, device=data.device)
+            for i,j in product(range(N), range(N)):
+                shifted = 
+
+
+            # data = torch.nn.functional.pad(data, (padding, padding, padding, padding))
+            # spectrum = torch.fft.fftshift(torch.fft.fft2(data))
+            # convolution = torch.nn.functional.pad(torch.fft.ifft2(spectrum*spectrum), (-padding, -padding, -padding, -padding))
+
+
+
+
+
+
 def test():
-    # test_gaussian_2d(7, 1000)
-    test_gaussian_3d(5, 4, 512, 60, 3.0)
+    test_gaussian_2d_N(5, (100, 400))
+    # test_gaussian_2d(7, 400)
+    # test_gaussian_3d(5, 4, 512, 60, 3.0)
 if __name__ == '__main__':
     test()
