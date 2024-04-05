@@ -3,6 +3,7 @@ import math
 import matplotlib.pyplot
 import torch
 import numpy
+import math
 from tqdm import tqdm
 
 from typing import Iterable, Union, Tuple
@@ -13,8 +14,10 @@ from matplotlib.animation import FuncAnimation
 
 if __name__ == '__main__':
     from filters import Gaussian as _gaussian_generator
+    from src.utilities.statistics import autocorrelation, distribution
 else:
     from . import gaussian as _gaussian_generator
+    from .....utilities.statistics import autocorrelation, distribution
 
 class FourierMask:
     _mask:torch.Tensor
@@ -130,6 +133,54 @@ def test_gaussian_3d(samples_t:int, samples_xy:int, Nxy=1000, fps:float=30, seco
 
     animation.save('test.gif')
     plot.show()
+def test_gaussian_3d_distribution(samples_t:int, samples_xy:int, Nxy=128, Nt:int=64):
+    limits = ((-1., +1.), (-1., +1.), (0., 1.))
+    areas_xy = numpy.logspace(-2, 0, samples_xy)
+    areas_t = numpy.logspace(-2, 0, samples_t)
+
+    col_generator = zip(range(samples_t), areas_t)
+    row_generator = zip(range(samples_xy), areas_xy)
+
+    plot = TiledPlot(test_figure_width, test_figure_height)
+    plot.FontLibrary.MultiplyFontSize(0.7)
+    plot.FontLibrary.SynchronizeFont('DejaVu Sans')
+    plot.title('Анализ распределения шума, полученного через модуляцию случайного Фурье образа Гауссом')
+
+    for col, area_t in col_generator:
+        power = int(math.log10(area_t))
+        number = round(area_t / (10 ** power), 2)
+        plot.description.column.top(f'$\\sigma_{{t}}={number}{{\\bullet}}10^{{{power}}}$', 2*col, 2*col+1)
+        plot.description.column.bottom('Срез поперёк времени', 2*col)
+        plot.description.column.bottom('Распределение', 2*col+1)
+
+    for row, area_xy in row_generator:
+        power = int(math.log10(area_xy))
+        number = round(area_xy / (10 ** power), 2)
+        plot.description.row.left(f'$\\sigma_{{xy}}={number}{{\\bullet}}10^{{{power}}}$', row)
+
+    col_generator = zip(range(samples_t), areas_t)
+    row_generator = zip(range(samples_xy), areas_xy)
+
+    kwargs = {'aspect':'auto', 'extent':[-1., +1., -1., +1.], 'cmap':'viridis'}
+    for (col, area_t), (row, area_xy) in tqdm(product(col_generator, row_generator), total=samples_t*samples_xy):
+        with torch.no_grad():
+            field = gaussian((area_t, area_xy, area_xy), (Nt, Nxy, Nxy), limits, generator=False)
+            dist_y = distribution(field, int(math.sqrt(Nxy*Nxy*Nt)))
+            dist_x = numpy.linspace(field.min(), field.max(), dist_y.size(0))
+            sample = field[Nt//2]
+
+            dist_y = dist_y.cpu()
+            sample = sample.cpu()
+
+        axes = plot.axes.add(2*col, row)
+        axes.imshow(sample, **kwargs)
+
+        axes = plot.axes.add(2*col+1, row)
+        axes.plot(dist_x, dist_y)
+        axes.grid(True)
+
+    plot.show()
+
 def test_gaussian_2d(samples:int, N:int=1000):
     limits = ((-1., +1.), (-1., +1.))
     areas = numpy.logspace(-2, +2, samples)
@@ -190,35 +241,38 @@ def test_gaussian_pirson_xy(samples:int, N:int, mean_count:int=30):
     limits = ((0, 1.0E+8), (-1., +1.), (-1., +1.))
     sigmas = numpy.logspace(-1, 0, samples)
 
-    padding = (N+1)//2
-
     plot = TiledPlot(test_figure_width, test_figure_height)
     plot.FontLibrary.MultiplyFontSize(0.7)
     plot.FontLibrary.SynchronizeFont('DejaVu Sans')
     plot.title('Автокорреляция двумерного шума, полученного через модуляцию случайного Фурье образа Гауссом')
 
+    kwargs = {'aspect':'auto', 'cmap':'viridis', 'extent':[-1., +1., -1., +1.]}
     for col, area in enumerate(tqdm(sigmas)):
         with torch.no_grad():
             data = gaussian((1.0E-8, area, area), (mean_count, N, N), limits, generator=False)
-            data = data - torch.mean(data, dim=0, keepdim=True)
+            correlations = autocorrelation(data, (1,2), 0)
+            sample = data[mean_count//2]
 
-            coefficients = torch.zeros(N, N, device=data.device)
-            for i,j in product(range(N), range(N)):
-                shifted = 
+            correlations = correlations.cpu()
+            sample = sample.cpu()
 
+        axes = plot.axes.add(col, 0)
+        axes.imshow(sample, **kwargs)
 
-            # data = torch.nn.functional.pad(data, (padding, padding, padding, padding))
-            # spectrum = torch.fft.fftshift(torch.fft.fft2(data))
-            # convolution = torch.nn.functional.pad(torch.fft.ifft2(spectrum*spectrum), (-padding, -padding, -padding, -padding))
+        axes = plot.axes.add(col, 1)
+        axes.imshow(correlations, **kwargs)
 
+        axes = plot.axes.add(col, 2)
+        axes.grid(True)
+        axes.plot(torch.linspace(-1, +1, N), correlations[N//2], linestyle='--')
 
-
-
-
+    plot.show()
 
 def test():
-    test_gaussian_2d_N(5, (100, 400))
+    # test_gaussian_pirson_xy(4, 100, 1000)
+    # test_gaussian_2d_N(5, (100, 400))
     # test_gaussian_2d(7, 400)
     # test_gaussian_3d(5, 4, 512, 60, 3.0)
+    test_gaussian_3d_distribution(5, 4, 512, 255)
 if __name__ == '__main__':
     test()
