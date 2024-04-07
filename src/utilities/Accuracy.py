@@ -13,14 +13,14 @@ class Accuracy:
 
     def set(self, bits:int):
         if bits == 16:
-            self._tensor_float = torch.float16
-            self._tensor_complex = torch.complex32
+            self.tensor_float = torch.float16
+            self.tensor_complex = torch.complex32
         elif bits == 32:
-            self._tensor_float = torch.float32
-            self._tensor_complex = torch.complex64
+            self.tensor_float = torch.float32
+            self.tensor_complex = torch.complex64
         elif bits == 64:
-            self._tensor_float = torch.float64
-            self._tensor_complex = torch.complex128
+            self.tensor_float = torch.float64
+            self.tensor_complex = torch.complex128
         else:
             raise ValueError('bits may be 16, 32 or 64')
         self._bits = bits

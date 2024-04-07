@@ -13,13 +13,15 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 
 if __name__ == '__main__':
+    from generators import Generator
     from filters import Gaussian as _gaussian_generator
     from src.utilities.statistics import autocorrelation, distribution
 else:
+    from .generators import Generator
     from . import gaussian as _gaussian_generator
     from .....utilities.statistics import autocorrelation, distribution
 
-class FourierMask:
+class FourierMask(Generator):
     _mask:torch.Tensor
     @property
     def dims(self):
@@ -34,12 +36,17 @@ class FourierMask:
     def dtype(self):
         return self._mask.dtype
 
+    def numel(self):
+        return self._mask.numel()
+
     def __init__(self, mask:torch.Tensor):
         self._mask = mask
 
     def sample(self) -> torch.Tensor:
         spectrum = torch.rand(self.size, device=self.device, dtype=self.dtype)*torch.exp(2j*torch.pi*torch.rand(self.size, device=self.device, dtype=self.dtype)) * self._mask
         return torch.sqrt(torch.abs(torch.fft.ifftn(spectrum))).to(self.dtype)
+
+
 
 def gaussian(areas:Union[Iterable[float],float], counts:Union[Iterable[int],int], limits:Union[Iterable[Tuple[float,float]],Tuple[float, float]]=None, device:torch.device=None, generator:bool=False) -> Union[torch.Tensor, FourierMask]:
     sigmas_:Tuple[float, ...]
@@ -78,6 +85,8 @@ def gaussian(areas:Union[Iterable[float],float], counts:Union[Iterable[int],int]
         return FourierMask(mask)
     else:
         return FourierMask(mask).sample()
+
+
 
 test_figure_width:float  = 16.
 test_figure_height:float = 9.
